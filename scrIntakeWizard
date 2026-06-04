@@ -1,0 +1,1893 @@
+Screens:
+  scrIntakeWizard:
+    Properties:
+      Fill: =gblTheme.ColorSurfaceAlt
+      OnVisible: |-
+        =If(
+            varWizardMode = "Resume",
+            // Resume path — warm up category question cache only if empty
+            If(
+                IsEmpty(colIntakeQuestions),
+                ClearCollect(colIntakeQuestions, Filter('Intake Questions', 'Is Active' = true))
+            )
+            // varProjectRec, varWizardStep already set — don't touch them
+        ,
+            // New request path — full reset
+            Concurrent(
+                Set(varWizardStep,         0),
+                Set(varGateStep,           0),
+                Set(varGateAnswer_Q0,      ""),
+                Set(varGateAnswer_Q1,      ""),
+                Set(varGateAnswer_Q2,      ""),
+                Set(varGateAnswer_Q3,      ""),
+                Set(varGateAnswer_Q4,      ""),
+                Set(varHasSteeringTrigger, false),
+                Set(varRequiresPMOTriage,  false),
+                Set(varRevenuePriority,    false),
+                Set(varJDI,                false),
+                Set(varProjectRec,         Blank()),     // ← real Blank
+                Set(varCategoryName,       ""),
+                Set(varSelectedCategory,   Blank()),
+                Set(varSubCategory,        Blank()),
+                Set(varSubCategoryConfirmed, false),
+                Set(varCategoryStepValid,  false),
+                Set(varWizardMode, "Create"),
+                Clear(colDynamicAnswers),
+                Clear(colDynamicMultiAnswers)
+            )
+        )
+    Children:
+      - cntIntakeShell:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            DropShadow: =DropShadow.None
+            Height: =App.Height - cmpHeader_4.Height - cmpPrimaryNav_6.Height - cntWizardHeader.Height
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutDirection: =LayoutDirection.Vertical
+            LayoutGap: =gblTheme.Space2
+            PaddingBottom: =gblTheme.Space5
+            PaddingLeft: =Switch(gblBreakpoint, "sm", gblTheme.Space3, "md", gblTheme.Space4, gblTheme.Space6)
+            PaddingRight: =Switch(gblBreakpoint, "sm", gblTheme.Space3, "md", gblTheme.Space4, gblTheme.Space6)
+            PaddingTop: =gblTheme.Space5
+            Visible: =varWizardStep >= 0 And varWizardStep <= 9
+            Width: =Parent.Width
+            Y: =cmpHeader_4.Height + cmpPrimaryNav_6.Height + cntWizardHeader.Height
+          Children:
+            - cntGateArea:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  DropShadow: =DropShadow.None
+                  Fill: =Color.Transparent
+                  Height: =
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space4
+                  LayoutJustifyContent: =LayoutJustifyContent.End
+                  LayoutMaxHeight: =625
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  LayoutOverflowY: =LayoutOverflow.Scroll
+                  PaddingBottom: =gblTheme.Space5
+                  PaddingLeft: =Switch(gblBreakpoint, "sm", gblTheme.Space3, "md", gblTheme.Space4, gblTheme.Space6)
+                  PaddingRight: =Switch(gblBreakpoint, "sm", gblTheme.Space3, "md", gblTheme.Space4, gblTheme.Space6)
+                  PaddingTop: =gblTheme.Space5
+                  Visible: =varWizardStep = 0
+                  Width: =Parent.Width
+                Children:
+                  - conGateCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.Center
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Fill: =gblTheme.ColorSurface
+                        Height: =
+                        LayoutAlignItems: =LayoutAlignItems.Stretch
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutGap: =gblTheme.Space4
+                        LayoutMaxHeight: =
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        LayoutWrap: =true
+                        PaddingBottom: =gblTheme.Space5
+                        PaddingLeft: =gblTheme.Space5
+                        PaddingRight: =gblTheme.Space5
+                        PaddingTop: =gblTheme.Space5
+                        RadiusBottomLeft: =gblTheme.RadiusMd
+                        RadiusBottomRight: =gblTheme.RadiusMd
+                        RadiusTopLeft: =gblTheme.RadiusMd
+                        RadiusTopRight: =gblTheme.RadiusMd
+                        Width: =Min(720, Parent.Width - gblTheme.Space6 * 2)
+                      Children:
+                        - cmpStepper_2:
+                            Control: CanvasComponent
+                            ComponentName: cmpStepper
+                            Properties:
+                              CurrentIndex: =varGateStep
+                              Height: =52
+                              Items: |-
+                                =Table(
+                                    {Key: "0", Label: "Outside team?",    Icon: ""},
+                                    {Key: "1", Label: "Shared resource?", Icon: ""},
+                                    {Key: "2", Label: "Clarity?",         Icon: ""},
+                                    {Key: "3", Label: "Duration?",        Icon: ""},
+                                    {Key: "4", Label: "Revenue?",         Icon: ""}
+                                )
+                              OnStepSelect: =
+                              Variant: ="bar"
+                              Width: =Parent.Width
+                        - conCardHeader:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              AlignInContainer: =AlignInContainer.Center
+                              DropShadow: =DropShadow.None
+                              Fill: =Color.Transparent
+                              FillPortions: =0
+                              Height: =28
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                              LayoutMaxHeight: =24
+                              LayoutMinHeight: =28
+                              LayoutMinWidth: =16
+                              Width: =Parent.Width - 48
+                            Children:
+                              - lblGateEyebrow:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Color: =gblTheme.ColorTextSecondary
+                                    FontWeight: =FontWeight.Semibold
+                                    Height: =30
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeCaption
+                                    Text: ="QUESTION " & (varGateStep + 1) & " OF 5"
+                              - badgeClassification:
+                                  Control: Badge@0.0.24
+                                  Properties:
+                                    Content: |-
+                                      =Switch(true,
+                                                varHasSteeringTrigger, "Steering Committee",
+                                                varRequiresPMOTriage,  "PMO Triage",
+                                                varJDI,                "Just Do It",
+                                                varRevenuePriority,    "Revenue Priority",
+                                                "")
+                                    FillPortions: =1
+                                    FontSize: =
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Shape: ='BadgeCanvas.Shape'.Rounded
+                                    ThemeColor: |-
+                                      =Switch(true,
+                                                varHasSteeringTrigger, 'BadgeCanvas.ThemeColor'.Danger,
+                                                varRequiresPMOTriage,  'BadgeCanvas.ThemeColor'.Warning,
+                                                varJDI,                'BadgeCanvas.ThemeColor'.Success,
+                                                varRevenuePriority,    'BadgeCanvas.ThemeColor'.Informative,
+                                                'BadgeCanvas.ThemeColor'.Subtle)
+                                    Visible: =varHasSteeringTrigger Or varRequiresPMOTriage Or varJDI Or varRevenuePriority
+                        - lblGateQuestion:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AutoHeight: =true
+                              Color: =gblTheme.ColorTextPrimary
+                              FillPortions: =1
+                              FontWeight: =FontWeight.Semibold
+                              Height: =
+                              LayoutMaxHeight: =80
+                              LayoutMinHeight: =24
+                              LayoutMinWidth: =16
+                              PaddingBottom: =8
+                              Size: =gblTheme.FontSizeH2
+                              Text: |-
+                                =Switch(
+                                varGateStep,
+                                0, "Will this request require work from anyone outside your immediate team (including IT)?",
+                                1, "Will you need a shared resource from another non-IT department (borrowed capacity)?",
+                                2, "How well is the solution understood today?",
+                                3, "What is the estimated duration of this request?",
+                                4, "Is this request intended to generate or protect revenue, or reduce cost?"
+                                )
+                              VerticalAlign: =VerticalAlign.Top
+                              Width: =Parent.Width - 48
+                        - txtGateHelper:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AutoHeight: =true
+                              Color: =gblTheme.ColorTextSecondary
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =gblTheme.FontSizeSmall
+                              Text: |-
+                                =Switch(varGateStep,
+                                          0, "Include any work that requires IT involvement, PMO coordination, or another team's time.",
+                                          1, "A shared resource is a person from another department whose time you'd need to borrow.",
+                                          2, "High = clear requirements and known solution. Low = still exploring what's needed.",
+                                          3, "How long do you expect this work to take once it starts?",
+                                          4, "This includes revenue generation, cost avoidance, or protecting existing customer relationships."
+                                      )
+                        - conGateAnswers:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              AlignInContainer: =AlignInContainer.Center
+                              DropShadow: =DropShadow.None
+                              Fill: =Color.Transparent
+                              Height: =
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              LayoutGap: =12
+                              LayoutJustifyContent: =LayoutJustifyContent.Center
+                              LayoutMinHeight: =60
+                              LayoutMinWidth: =16
+                              PaddingBottom: =gblTheme.Space2
+                              PaddingTop: =gblTheme.Space2
+                              RadiusBottomLeft: =0
+                              RadiusBottomRight: =0
+                              RadiusTopLeft: =0
+                              RadiusTopRight: =0
+                              Width: =Parent.Width - 48
+                            Children:
+                              - conAnswerYesNo:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Center
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    LayoutGap: =gblTheme.Space3
+                                    LayoutJustifyContent: =LayoutJustifyContent.Center
+                                    LayoutMinHeight: =56
+                                    LayoutMinWidth: =16
+                                    PaddingBottom: =8
+                                    PaddingLeft: =8
+                                    PaddingRight: =8
+                                    PaddingTop: =8
+                                    Visible: =varGateStep = 0 Or varGateStep = 1 Or varGateStep = 4
+                                    Width: =Parent.Width
+                                  Children:
+                                    - btnGateYes:
+                                        Control: Button@0.0.45
+                                        Properties:
+                                          Appearance: |-
+                                            =If(
+                                                    Switch(varGateStep, 0, varGateAnswer_Q0, 1, varGateAnswer_Q1, 4, varGateAnswer_Q4) = "Yes",
+                                                    'ButtonCanvas.Appearance'.Primary,
+                                                    'ButtonCanvas.Appearance'.Secondary
+                                                )
+                                          BasePaletteColor: |-
+                                            =If(
+                                                    Switch(varGateStep, 0, varGateAnswer_Q0, 1, varGateAnswer_Q1, 4, varGateAnswer_Q4) = "Yes",
+                                                    gblTheme.ColorBrandAccent,
+                                                    gblTheme.ColorBorder
+                                                )
+                                          BorderColor: |-
+                                            =If(
+                                                    Switch(varGateStep, 0, varGateAnswer_Q0, 1, varGateAnswer_Q1, 4, varGateAnswer_Q4) = "Yes",
+                                                    gblColorGreen,
+                                                    gblColorMuted
+                                                )
+                                          BorderRadiusBottomLeft: =10
+                                          BorderRadiusBottomRight: =10
+                                          BorderRadiusTopLeft: =10
+                                          BorderRadiusTopRight: =10
+                                          BorderThickness: =2
+                                          FontColor: |-
+                                            =If(
+                                                    Switch(varGateStep, 0, varGateAnswer_Q0, 1, varGateAnswer_Q1, 4, varGateAnswer_Q4) = "Yes",
+                                                    gblTheme.ColorTextInverse,
+                                                    gblTheme.ColorTextPrimary
+                                                )
+                                          FontSize: =14
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =52
+                                          LayoutMinHeight: =52
+                                          LayoutMinWidth: =16
+                                          OnSelect: |
+                                            =Set(varGateCurrentAnswer, "Yes");
+                                                      Switch(
+                                                    varGateStep,
+                                                    0, Set(varGateAnswer_Q0, "Yes"),
+                                                    1, Set(varGateAnswer_Q1, "Yes"),
+                                                    4, Set(varGateAnswer_Q4, "Yes")
+                                                )
+                                          Text: ="Yes"
+                                          Width: =160
+                                    - btnGateNo:
+                                        Control: Button@0.0.45
+                                        Properties:
+                                          Appearance: |-
+                                            =If(
+                                                    Switch(varGateStep, 0, varGateAnswer_Q0, 1, varGateAnswer_Q1, 4, varGateAnswer_Q4) = "No",
+                                                    'ButtonCanvas.Appearance'.Primary,
+                                                    'ButtonCanvas.Appearance'.Secondary
+                                                )
+                                          BasePaletteColor: |-
+                                            =If(
+                                                    Switch(varGateStep, 0, varGateAnswer_Q0, 1, varGateAnswer_Q1, 4, varGateAnswer_Q4) = "No",
+                                                    gblTheme.ColorBrandAccent,
+                                                    gblTheme.ColorBorder
+                                                )
+                                          BorderColor: |-
+                                            =If(
+                                                    Switch(varGateStep, 0, varGateAnswer_Q0, 1, varGateAnswer_Q1, 4, varGateAnswer_Q4) = "No",
+                                                    gblColorGreen,
+                                                    gblColorMuted
+                                                )
+                                          BorderRadiusBottomLeft: =10
+                                          BorderRadiusBottomRight: =10
+                                          BorderRadiusTopLeft: =10
+                                          BorderRadiusTopRight: =10
+                                          BorderThickness: =2
+                                          FontColor: |-
+                                            =If(
+                                                    Switch(varGateStep, 0, varGateAnswer_Q0, 1, varGateAnswer_Q1, 4, varGateAnswer_Q4) = "No",
+                                                    gblTheme.ColorTextInverse,
+                                                    gblTheme.ColorTextPrimary
+                                                )
+                                          FontSize: =14
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =52
+                                          LayoutMinHeight: =52
+                                          LayoutMinWidth: =16
+                                          OnSelect: |-
+                                            =Switch(
+                                                    varGateStep,
+                                                    0, Set(varGateAnswer_Q0, "No"),
+                                                    1, Set(varGateAnswer_Q1, "No"),
+                                                    4, Set(varGateAnswer_Q4, "No")
+                                                )
+                                          Text: ="No"
+                                          Width: =160
+                              - conAnswerClarity:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Center
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    LayoutGap: =gblTheme.Space3
+                                    LayoutJustifyContent: =LayoutJustifyContent.Center
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    PaddingBottom: =8
+                                    PaddingLeft: =8
+                                    PaddingRight: =8
+                                    PaddingTop: =8
+                                    Visible: =varGateStep = 2
+                                    Width: =Parent.Width
+                                  Children:
+                                    - btnClarityHigh:
+                                        Control: Button@0.0.45
+                                        Properties:
+                                          Align: =Align.Center
+                                          AlignInContainer: =AlignInContainer.Center
+                                          Appearance: |-
+                                            =If(varGateAnswer_Q2 = "High",
+                                                    'ButtonCanvas.Appearance'.Primary,
+                                                    'ButtonCanvas.Appearance'.Secondary)
+                                          BasePaletteColor: |-
+                                            =If(varGateAnswer_Q2 = "High",
+                                                    gblTheme.ColorBrandAccent,
+                                                    gblTheme.ColorBorder)
+                                          BorderColor: =If(varGateAnswer_Q2 = "High", gblColorGreen, gblTheme.ColorBorder)
+                                          BorderRadius: =10
+                                          BorderThickness: =2
+                                          FontColor: |-
+                                            =If(varGateAnswer_Q2 = "High",
+                                                    gblTheme.ColorTextInverse,
+                                                    gblTheme.ColorTextPrimary)
+                                          FontSize: =14
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =52
+                                          LayoutMinHeight: =52
+                                          LayoutMinWidth: =16
+                                          OnSelect: |
+                                            =Set(varGateAnswer_Q2, "High");
+                                          Text: ="High"
+                                          Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
+                                    - btnClarityMedium:
+                                        Control: Button@0.0.45
+                                        Properties:
+                                          Align: =Align.Center
+                                          Appearance: |-
+                                            =If(varGateAnswer_Q2 = "Medium",
+                                                      'ButtonCanvas.Appearance'.Primary,
+                                                      'ButtonCanvas.Appearance'.Secondary)
+                                          BasePaletteColor: =If(varGateAnswer_Q2 = "Medium", gblTheme.ColorBrandAccent, gblTheme.ColorBorder)
+                                          BorderColor: =If(varGateAnswer_Q2 = "Medium", gblTheme.ColorBrandAccent, gblTheme.ColorBorder)
+                                          BorderRadius: =10
+                                          BorderThickness: =2
+                                          FontColor: |-
+                                            =If(varGateAnswer_Q2 = "Medium",
+                                                      gblTheme.ColorTextInverse,
+                                                      gblTheme.ColorTextPrimary)
+                                          FontSize: =gblTheme.FontSizeBody
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =52
+                                          LayoutMinHeight: =52
+                                          LayoutMinWidth: =16
+                                          OnSelect: =Set(varGateAnswer_Q2, "Medium");
+                                          Text: ="Medium"
+                                          Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
+                                    - btnClarityLow:
+                                        Control: Button@0.0.45
+                                        Properties:
+                                          Align: =Align.Center
+                                          AlignInContainer: =AlignInContainer.Center
+                                          Appearance: |-
+                                            =If(varGateAnswer_Q2 = "Low",
+                                                      'ButtonCanvas.Appearance'.Primary,
+                                                      'ButtonCanvas.Appearance'.Secondary)
+                                          BasePaletteColor: |-
+                                            =If(varGateAnswer_Q2 = "Low",
+                                                      gblTheme.ColorBrandAccent,
+                                                      gblTheme.ColorBorder)
+                                          BorderColor: =If(varGateAnswer_Q2 = "Low", gblTheme.ColorBrandAccent, gblTheme.ColorBorder)
+                                          BorderRadius: =10
+                                          BorderThickness: =2
+                                          FontColor: |-
+                                            =If(varGateAnswer_Q2 = "Low",
+                                                      gblTheme.ColorTextInverse,
+                                                      gblTheme.ColorTextPrimary)
+                                          FontSize: =gblTheme.FontSizeBody
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =52
+                                          LayoutMinHeight: =52
+                                          LayoutMinWidth: =16
+                                          OnSelect: =Set(varGateAnswer_Q2, "Low");
+                                          Text: ="Low"
+                                          Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
+                              - conAnswerDuration:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Center
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    LayoutGap: =gblTheme.Space3
+                                    LayoutJustifyContent: =LayoutJustifyContent.Center
+                                    LayoutMinHeight: =56
+                                    LayoutMinWidth: =16
+                                    PaddingBottom: =8
+                                    PaddingLeft: =8
+                                    PaddingRight: =8
+                                    PaddingTop: =8
+                                    Visible: =varGateStep = 3
+                                    Width: =Parent.Width
+                                  Children:
+                                    - btnDays:
+                                        Control: Button@0.0.45
+                                        Properties:
+                                          Appearance: |-
+                                            =If(varGateAnswer_Q3 = "Days",
+                                                      'ButtonCanvas.Appearance'.Primary,
+                                                      'ButtonCanvas.Appearance'.Secondary)
+                                          BasePaletteColor: |-
+                                            =If(varGateAnswer_Q3 = "Days",
+                                                      gblTheme.ColorBrandAccent,
+                                                      gblTheme.ColorBorder)
+                                          BorderColor: =If(varGateAnswer_Q3 = "Days", gblTheme.ColorBrandAccent, gblTheme.ColorBorder)
+                                          BorderRadius: =10
+                                          BorderThickness: =2
+                                          FillPortions: =
+                                          FontColor: |-
+                                            =If(varGateAnswer_Q3 = "Days",
+                                                      gblTheme.ColorTextInverse,
+                                                      gblTheme.ColorTextPrimary)
+                                          FontSize: =gblTheme.FontSizeBody
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =52
+                                          LayoutMinHeight: =52
+                                          LayoutMinWidth: =16
+                                          OnSelect: |-
+                                            =Set(varGateAnswer_Q3, "Days");
+                                                      Set(varJDI, true);
+                                                      Set(varHasSteeringTrigger, false);
+                                                      Set(varRequiresPMOTriage, false)
+                                          Text: ="Days"
+                                          Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
+                                    - btnWeeks:
+                                        Control: Button@0.0.45
+                                        Properties:
+                                          Appearance: |-
+                                            =If(varGateAnswer_Q3 = "Weeks",
+                                                      'ButtonCanvas.Appearance'.Primary,
+                                                      'ButtonCanvas.Appearance'.Secondary)
+                                          BasePaletteColor: |-
+                                            =If(varGateAnswer_Q3 = "Weeks",
+                                                      gblTheme.ColorBrandAccent,
+                                                      gblTheme.ColorBorder)
+                                          BorderColor: =If(varGateAnswer_Q3 = "Weeks", gblTheme.ColorBrandAccent, gblTheme.ColorBorder)
+                                          BorderRadius: =10
+                                          BorderThickness: =2
+                                          FillPortions: =1
+                                          FontColor: |-
+                                            =If(varGateAnswer_Q3 = "Weeks",
+                                                      gblTheme.ColorTextInverse,
+                                                      gblTheme.ColorTextPrimary)
+                                          FontSize: =gblTheme.FontSizeBody
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =52
+                                          LayoutMinHeight: =52
+                                          LayoutMinWidth: =16
+                                          OnSelect: |-
+                                            =Set(varGateAnswer_Q3, "Weeks");
+                                                      Set(varRequiresPMOTriage, true);
+                                                      Set(varHasSteeringTrigger, false);
+                                                      Set(varJDI, false)
+                                          Text: ="Weeks"
+                                          Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
+                                    - btnMonths:
+                                        Control: Button@0.0.45
+                                        Properties:
+                                          Appearance: |-
+                                            =If(varGateAnswer_Q3 = "Months",
+                                                      'ButtonCanvas.Appearance'.Primary,
+                                                      'ButtonCanvas.Appearance'.Secondary)
+                                          BasePaletteColor: |-
+                                            =If(varGateAnswer_Q3 = "Months",
+                                                      gblTheme.ColorBrandAccent,
+                                                      gblTheme.ColorBorder)
+                                          BorderColor: =If(varGateAnswer_Q3 = "Months", gblTheme.ColorBrandAccent, gblTheme.ColorBorder)
+                                          BorderRadius: =10
+                                          BorderThickness: =2
+                                          FillPortions: =1
+                                          FontColor: |-
+                                            =If(varGateAnswer_Q3 = "Months",
+                                                      gblTheme.ColorTextInverse,
+                                                      gblTheme.ColorTextPrimary)
+                                          FontSize: =gblTheme.FontSizeBody
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =52
+                                          LayoutMinHeight: =52
+                                          LayoutMinWidth: =16
+                                          OnSelect: |-
+                                            =Set(varGateAnswer_Q3, "Months");
+                                                      Set(varHasSteeringTrigger, true);
+                                                      Set(varJDI, false);
+                                                      Set(varRequiresPMOTriage, false)
+                                          Text: ="Months"
+                                          Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
+                  - conGateNav:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        DropShadow: =DropShadow.None
+                        Height: =
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                        LayoutMaxHeight: =52
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        PaddingBottom: =gblTheme.Space5
+                        PaddingLeft: =gblTheme.Space5
+                        PaddingRight: =gblTheme.Space5
+                        PaddingTop: =gblTheme.Space5
+                        Width: =Parent.Width - 48
+                      Children:
+                        - btnGateBack:
+                            Control: Button@0.0.45
+                            Properties:
+                              Appearance: ='ButtonCanvas.Appearance'.Secondary
+                              Height: =44
+                              Icon: ="ChevronLeft"
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              OnSelect: |-
+                                =If(
+                                                                    varGateStep = 0,
+                                                                    Navigate(scrHome, ScreenTransition.Fade),
+                                                                    // Not on Q0 — clear flags (recomputed on forward nav) then step back
+                                                                    Set(varHasSteeringTrigger, false);
+                                                                    Set(varRequiresPMOTriage,  false);
+                                                                    Set(varJDI,                false);
+                                                                    Set(varRevenuePriority,    false);
+                                                                    Switch(
+                                                                        varGateStep,
+                                                                        1, Set(varGateAnswer_Q1, ""); Set(varGateStep, 0),
+                                                                        2, Set(varGateAnswer_Q2, ""); Set(varGateStep, 1),
+                                                                        3, Set(varGateAnswer_Q3, ""); Set(varGateStep, 2),
+                                                                        4, Set(varGateAnswer_Q4, ""); Set(varGateStep, 3)
+                                                                    )
+                                                                )
+                              Text: ="Back"
+                              Visible: =varGateStep > 0
+                              Width: =120
+                        - btnGateNext:
+                            Control: Button@0.0.45
+                            Properties:
+                              Appearance: ='ButtonCanvas.Appearance'.Secondary
+                              DisplayMode: |-
+                                =Switch(
+                                                                    varGateStep,
+                                                                    0, If(varGateAnswer_Q0 <> "", DisplayMode.Edit, DisplayMode.Disabled),
+                                                                    1, If(varGateAnswer_Q1 <> "", DisplayMode.Edit, DisplayMode.Disabled),
+                                                                    2, If(varGateAnswer_Q2 <> "", DisplayMode.Edit, DisplayMode.Disabled),
+                                                                    3, If(varGateAnswer_Q3 <> "", DisplayMode.Edit, DisplayMode.Disabled),
+                                                                    4, If(varGateAnswer_Q4 <> "", DisplayMode.Edit, DisplayMode.Disabled),
+                                                                    DisplayMode.Disabled
+                                                                )
+                              Height: =44
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              OnSelect: |-
+                                =Switch(
+                                                                    varGateStep,
+
+                                                                    // Q0: Outside team?
+                                                                    0,
+                                If(
+                                    varGateAnswer_Q0 = "No",
+                                    Notify("No PMO submission required.", NotificationType.Success);
+                                    Set(varWizardStep, 0);
+                                    Set(varGateAnswer_Q0, "");
+                                    Navigate(scrHome, ScreenTransition.Fade),
+                                    Set(varGateStep, 1);
+                                    Set(varGateAnswer_Q1, "")
+                                ),
+
+                                                                    // Q1: Shared resource?
+                                                                    1,
+                                                                    If(
+                                                                        varGateAnswer_Q1 = "Yes",
+                                                                        Set(varHasSteeringTrigger, true);
+                                                                        Set(varGateStep, 2);
+                                                                        Set(varGateAnswer_Q2, ""),
+                                                                        Set(varHasSteeringTrigger, false);
+                                                                        Set(varGateStep, 2);
+                                                                        Set(varGateAnswer_Q2, "")
+                                                                    ),
+
+                                                                    // Q2: Clarity?
+                                                                    2,
+                                                                    If(
+                                                                        varGateAnswer_Q2 = "High",
+                                                                        Set(varHasSteeringTrigger, false);
+                                                                        Set(varJDI,                false);
+                                                                        Set(varRequiresPMOTriage,  false);
+                                                                        Set(varGateStep, 3);
+                                                                        Set(varGateAnswer_Q3, ""),
+                                                                        Set(varHasSteeringTrigger, true);
+                                                                        Set(varJDI,                false);
+                                                                        Set(varRequiresPMOTriage,  false);
+                                                                        Set(varGateStep, 3);
+                                                                        Set(varGateAnswer_Q3, "")
+                                                                    ),
+
+                                                                    // Q3: Duration?
+                                                                    3,
+                                                                    Switch(
+                                                                        varGateAnswer_Q3,
+                                                                        "Days",
+                                                                        Set(varJDI,                true);
+                                                                        Set(varHasSteeringTrigger, false);
+                                                                        Set(varRequiresPMOTriage,  false);
+                                                                        Set(varGateStep, 4);
+                                                                        Set(varGateAnswer_Q4, ""),
+                                                                        "Weeks",
+                                                                        Set(varJDI,                false);
+                                                                        Set(varHasSteeringTrigger, false);
+                                                                        Set(varRequiresPMOTriage,  true);
+                                                                        Set(varGateStep, 4);
+                                                                        Set(varGateAnswer_Q4, ""),
+                                                                        "Months",
+                                                                        Set(varJDI,                false);
+                                                                        Set(varHasSteeringTrigger, true);
+                                                                        Set(varRequiresPMOTriage,  false);
+                                                                        Set(varGateStep, 4);
+                                                                        Set(varGateAnswer_Q4, ""),
+                                                                        Notify("Please select a duration.", NotificationType.Error)
+                                                                    ),
+
+                                                                    // Q4: Revenue? (final — advance to form)
+                                                                    4,
+                                                                    If(
+                                                                        varGateAnswer_Q4 = "Yes",
+                                                                        Set(varRevenuePriority, true),
+                                                                        Set(varRevenuePriority, false)
+                                                                    );
+                                                                    Set(varGateStep, 0);
+                                                                    Set(varWizardStep, 1);
+                                                                    Notify("Classification complete. Proceeding to intake form...", NotificationType.Success),
+
+                                                                    Notify("Unexpected state. Please refresh and try again.", NotificationType.Error)
+                                                                )
+                              Text: |-
+                                =Switch(
+                                                                    varGateStep,
+                                                                    4, "Go to Intake Form",
+                                                                    "Next question"
+                                                                )
+                              Visible: =varGateStep >= 0
+                              Width: =200
+            - cntMainIntakeForm:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  DropShadow: =DropShadow.None
+                  Fill: =Color.Transparent
+                  Height: =Parent.Height - cntMainFormNav.Height
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutMaxHeight: =
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  PaddingBottom: =8
+                  PaddingLeft: =8
+                  PaddingRight: =8
+                  PaddingTop: =8
+                  RadiusBottomLeft: =0
+                  RadiusBottomRight: =0
+                  RadiusTopLeft: =0
+                  RadiusTopRight: =0
+                  Visible: =varWizardStep >= 1 && varWizardStep <= 9
+                  Width: =App.Width
+                Children:
+                  - conIntakeFormShell:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        DropShadow: =DropShadow.None
+                        Fill: =gblTheme.ColorSurfaceAlt
+                        Height: |-
+                          =App.Height
+                              - cmpHeader_4.Height
+                              - cmpPrimaryNav_6.Height
+                              - cntWizardHeader.Height
+                              - cntMainFormNav.Height
+                        LayoutAlignItems: =LayoutAlignItems.Stretch
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        LayoutGap: =gblTheme.Space5
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        PaddingBottom: =20
+                        PaddingLeft: =24
+                        PaddingRight: =24
+                        PaddingTop: =20
+                        Visible: =varWizardStep = 1
+                        Width: =Parent.Width
+                        X: =
+                        Y: =
+                      Children:
+                        - conLeftCol:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              DropShadow: =DropShadow.None
+                              Fill: =Color.Transparent
+                              LayoutAlignItems: =LayoutAlignItems.Stretch
+                              LayoutDirection: =LayoutDirection.Vertical
+                              LayoutGap: =gblTheme.Space4
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              PaddingRight: =gblTheme.Space3
+                            Children:
+                              - conField_Title:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Stretch
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    LayoutGap: =4
+                                    LayoutMinWidth: =16
+                                  Children:
+                                    - lblField_Title:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          AutoHeight: =true
+                                          Height: =16
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          PaddingBottom: =
+                                          PaddingLeft: =
+                                          PaddingRight: =
+                                          PaddingTop: =
+                                          Size: =gblTheme.FontSizeSmall
+                                          Text: ="Request Title *"
+                                          VerticalAlign: =VerticalAlign.Top
+                                    - txtRequestTitle:
+                                        Control: ModernTextInput@1.1.0
+                                        Properties:
+                                          Default: =
+                                          Fill: =gblTheme.ColorSurface
+                                          Height: =36
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          Width: =Parent.Width
+                              - conField_Sponsor:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Stretch
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    LayoutGap: =4
+                                    LayoutMinWidth: =16
+                                  Children:
+                                    - lblField_Sponsor:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          AutoHeight: =true
+                                          Height: =16
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          PaddingBottom: =
+                                          PaddingLeft: =
+                                          PaddingRight: =
+                                          PaddingTop: =
+                                          Size: =gblTheme.FontSizeSmall
+                                          Text: ="Business Sponsor *"
+                                    - txtRequestSponsor:
+                                        Control: ModernTextInput@1.1.0
+                                        Properties:
+                                          Default: =
+                                          Fill: =gblTheme.ColorSurface
+                                          Height: =36
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          Width: =Parent.Width
+                              - conField_Category:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Stretch
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    LayoutGap: =4
+                                    LayoutMinWidth: =16
+                                  Children:
+                                    - lblField_Category:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          AutoHeight: =true
+                                          Height: =16
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          PaddingBottom: =
+                                          PaddingLeft: =
+                                          PaddingRight: =
+                                          PaddingTop: =
+                                          Size: =gblTheme.FontSizeSmall
+                                          Text: ="Project Category *"
+                                    - ddProjectCategory:
+                                        Control: ModernCombobox@1.1.0
+                                        Properties:
+                                          Fill: =gblTheme.ColorSurface
+                                          Height: =36
+                                          ItemDisplayText: =ThisItem.Value
+                                          Items: =gblChoices.ProjectCategory
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          OnChange: |-
+                                            =If(
+                                                IsEmpty(colIntakeQuestions),
+                                                ClearCollect(colIntakeQuestions, Filter('Intake Questions', 'Is Active' = true))
+                                            );
+                                            Set(varCategoryName, Text(ddProjectCategory.Selected.Value));
+                                            Set(varSelectedCategory, ddProjectCategory.Selected.Value);
+                                            Set(varSubCategory, Blank());
+                                            Set(varSubCategoryConfirmed, false);
+                                            Set(varCategoryStepValid, false);
+                                            Clear(colDynamicAnswers);
+                                            ClearCollect(
+                                                colDynamicCategoryQuestions,
+                                                SortByColumns(
+                                                    Filter(
+                                                        colIntakeQuestions,
+                                                        'Project Category' = ddProjectCategory.Selected.Value,
+                                                        'Is Active' = true
+                                                    ),
+                                                    "nod_displayorder",
+                                                    SortOrder.Ascending
+                                                )
+                                            )
+                                          Width: =Parent.Width
+                              - conField_Systems:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Stretch
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    LayoutGap: =4
+                                    LayoutMinWidth: =16
+                                  Children:
+                                    - lblField_Systems:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          AutoHeight: =true
+                                          Height: =16
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          PaddingBottom: =
+                                          PaddingLeft: =
+                                          PaddingRight: =
+                                          PaddingTop: =
+                                          Size: =gblTheme.FontSizeSmall
+                                          Text: ="IT Systems Impacted"
+                                    - ddITSystems:
+                                        Control: ModernCombobox@1.1.0
+                                        Properties:
+                                          Fill: =gblTheme.ColorSurface
+                                          Height: =36
+                                          ItemDisplayText: =ThisItem.Value
+                                          Items: =gblChoices.ITSystems
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          Width: =Parent.Width
+                              - conField_BenefitAmount:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Stretch
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    LayoutGap: =4
+                                    LayoutMinWidth: =16
+                                  Children:
+                                    - lblField_BenAmt:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          AutoHeight: =true
+                                          Height: =16
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          PaddingBottom: =
+                                          PaddingLeft: =
+                                          PaddingRight: =
+                                          PaddingTop: =
+                                          Size: =gblTheme.FontSizeSmall
+                                          Text: ="Benefit Amount ($) *"
+                                    - txtBenefitAmount:
+                                        Control: ModernTextInput@1.1.0
+                                        Properties:
+                                          Default: =
+                                          Fill: =gblTheme.ColorSurface
+                                          Height: =36
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          Width: =Parent.Width
+                              - conField_BenefitScore:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    DropShadow: =DropShadow.None
+                                    Fill: =Color.Transparent
+                                    FillPortions: =0
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Stretch
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    LayoutGap: =4
+                                    LayoutMinWidth: =16
+                                  Children:
+                                    - lblField_BenScore:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          AutoHeight: =true
+                                          Height: =16
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          PaddingBottom: =0
+                                          PaddingLeft: =0
+                                          PaddingRight: =0
+                                          PaddingTop: =0
+                                          Size: =gblTheme.FontSizeSmall
+                                          Text: ="Benefit Score"
+                                    - badgeBenefitScore:
+                                        Control: Badge@0.0.24
+                                        Properties:
+                                          BasePaletteColor: =gblTheme.ColorSurfaceAlt
+                                          Content: |-
+                                            =Switch(
+                                                true,
+                                                IsBlank(txtBenefitAmount.Text),         "—",
+                                                Value(txtBenefitAmount.Text) <= 25000,  "2",
+                                                Value(txtBenefitAmount.Text) <= 50000,  "4",
+                                                Value(txtBenefitAmount.Text) <= 100000, "6",
+                                                Value(txtBenefitAmount.Text) <= 250000, "8",
+                                                Value(txtBenefitAmount.Text) > 250000,  "10",
+                                                "0"
+                                            )
+                                          DisplayMode: =DisplayMode.View
+                                          FontSize: =gblTheme.FontSizeBody
+                                          FontWeight: =FontWeight.Semibold
+                                          Height: =20
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          Shape: ='BadgeCanvas.Shape'.Rounded
+                                          ThemeColor: |-
+                                            =Switch(
+                                                Self.Content,
+                                                "2",  'BadgeCanvas.ThemeColor'.Subtle,
+                                                "4",  'BadgeCanvas.ThemeColor'.Subtle,
+                                                "6",  'BadgeCanvas.ThemeColor'.Informative,
+                                                "8",  'BadgeCanvas.ThemeColor'.Warning,
+                                                "10", 'BadgeCanvas.ThemeColor'.Success,
+                                                'BadgeCanvas.ThemeColor'.Subtle
+                                            )
+                                          Width: =Parent.Width
+                        - conRightCol:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              DropShadow: =DropShadow.None
+                              Fill: =Color.Transparent
+                              FillPortions: =1.4
+                              LayoutAlignItems: =LayoutAlignItems.Stretch
+                              LayoutDirection: =LayoutDirection.Vertical
+                              LayoutGap: =4
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                            Children:
+                              - lblField_Problem:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    AutoHeight: =true
+                                    Color: =gblTheme.ColorTextSecondary
+                                    FontWeight: =FontWeight.Semibold
+                                    Height: =16
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeSmall
+                                    Text: ="Business Problem *"
+                                    VerticalAlign: =VerticalAlign.Top
+                                    Width: =Parent.Width
+                              - txtBusinessProblem:
+                                  Control: ModernTextInput@1.1.0
+                                  Properties:
+                                    BorderColor: =gblTheme.ColorBorder
+                                    BorderThickness: =1
+                                    Default: =
+                                    FillPortions: =1
+                                    Height: =
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    PaddingBottom: =12
+                                    PaddingLeft: =12
+                                    PaddingRight: =12
+                                    PaddingTop: =12
+                                    Placeholder: ="Describe the business problem, opportunity, or need. What is broken, missing, or inefficient today?"
+                                    RadiusBottomLeft: =gblTheme.RadiusMd
+                                    RadiusBottomRight: =gblTheme.RadiusMd
+                                    RadiusTopLeft: =gblTheme.RadiusMd
+                                    RadiusTopRight: =gblTheme.RadiusMd
+                                    Type: =TextInputType.Multiline
+                                    Width: =Parent.Width
+                  - cntCatDynamic:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =2
+                        Fill: =gblTheme.ColorSurfaceAlt
+                        Height: =Parent.Height
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        LayoutOverflowY: =LayoutOverflow.Scroll
+                        PaddingBottom: =
+                        PaddingLeft: =gblTheme.Space5
+                        PaddingRight: =gblTheme.Space5
+                        PaddingTop: =
+                        RadiusBottomLeft: =gblTheme.RadiusMd
+                        RadiusBottomRight: =gblTheme.RadiusMd
+                        RadiusTopLeft: =gblTheme.RadiusMd
+                        RadiusTopRight: =gblTheme.RadiusMd
+                        Visible: =varWizardStep >= 2
+                        Width: =Parent.Width
+                      Children:
+                        - cmpSectionHeader_Dynamic:
+                            Control: CanvasComponent
+                            ComponentName: cmpSectionHeader
+                            Properties:
+                              ActionLabel: ="Need Help?"
+                              Height: =56
+                              OnActionSelect: |-
+                                =If(
+                                        !IsBlank(varProjectRec.'Request Title'),
+                                        IfError(
+                                            Launch(
+                                                "https://teams.microsoft.com/l/channel/19%3AvVXLVPUUEgqpF66XDJBXXwjKDmrgzrALqnnwLgT03KM1%40thread.tacv2/conversations?groupId=114a9703-5b94-44b8-82a3-1fcfa4376172&tenantId=e5396750-352e-4a19-be0b-b0a28f8050bc",
+                                                {},
+                                                LaunchTarget.New
+                                            ),
+                                            // Fallback: offer email contact
+                                            Notify("Teams is not available. Please email support@company.com for help.", NotificationType.Information)
+                                        ),
+                                        Notify("Please complete Step 1 before requesting help.", NotificationType.Warning)
+                                    )
+                              Subtitle: ="Please answer the following questions about your request."
+                              Title: =varSelectedCategory & " Details"
+                              TitleLevel: =2
+                              Width: =Parent.Width
+                        - lblSubCategoryPrompt:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Color: =gblTheme.ColorTextPrimary
+                              FontWeight: =FontWeight.Semibold
+                              Height: =50
+                              OnSelect: =
+                              Size: =gblTheme.FontSizeBody
+                              Text: =If(varSelectedCategory = nod_pr_category.EDI, "Is this a Supplier or Customer onboarding request?", "Is this for a new website or an existing website?")
+                              Visible: =varSelectedCategory in ["eCommerce", "EDI"]
+                              Width: =960
+                        - rdbSubCategory:
+                            Control: ModernRadio@1.0.0
+                            Properties:
+                              Default: =Blank()
+                              Height: =44
+                              Items: =If(varSelectedCategory = nod_pr_category.EDI, ["Supplier", "Customer"], ["New", "Existing"])
+                              Layout: =OptionLayout.Horizontal
+                              OnChange: |-
+                                =// Comma version
+                                If(
+                                    IsEmpty(colIntakeQuestions),
+                                    ClearCollect(colIntakeQuestions, Filter('Intake Questions', 'Is Active' = true))
+                                );
+                                Set(varSubCategory, rdbSubCategory.Selected.Value);
+                                Set(varSubCategoryConfirmed, true);
+                                Clear(colDynamicAnswers);
+                                ClearCollect(
+                                    colDynamicCategoryQuestions,
+                                    SortByColumns(
+                                        Filter(
+                                            colIntakeQuestions,
+                                            'Project Category' = varSelectedCategory,
+                                            Or(
+                                                IsBlank('Sub-Category'),
+                                                'Sub-Category' = rdbSubCategory.Selected.Value
+                                            ),
+                                            'Is Active' = true
+                                        ),
+                                        "nod_displayorder",
+                                        SortOrder.Ascending
+                                    )
+                                )
+                              Width: =960
+                        - galCategoryQuestions:
+                            Control: Gallery@2.15.0
+                            Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+                            Properties:
+                              AlignInContainer: =AlignInContainer.SetByContainer
+                              Height: =Parent.Height - cmpSectionHeader_Dynamic.Height - 48
+                              Items: =colDynamicCategoryQuestions
+                              LayoutMinHeight: =340
+                              TemplateSize: =100
+                              Visible: |-
+                                =If(
+                                    varSelectedCategory in ["EDI", "eCommerce"],
+                                    varSubCategoryConfirmed,
+                                    true
+                                )
+                              Width: =Parent.Width
+                            Children:
+                              - cmbDynamicMulti:
+                                  Control: ModernCombobox@1.1.0
+                                  Properties:
+                                    BorderColor: =gblTheme.ColorBorder
+                                    Color: =gblTheme.ColorTextPrimary
+                                    Fill: =gblTheme.ColorSurface
+                                    Height: =44
+                                    ItemDisplayText: =ThisItem.'Option Label'
+                                    Items: |-
+                                      =Filter(
+                                                              colQuestionOptions,
+                                                              Question.'Intake Question' = ThisItem.'Intake Question'
+                                                          )
+                                    OnChange: |-
+                                      =UpdateContext({
+                                          _qId:    ThisItem.'Intake Question',
+                                          _colMap: ThisItem.'Column Mapping',
+                                          _label:  ThisItem.'Question Label'
+                                      });
+                                      IfError(
+                                          ClearCollect(
+                                              colDynamicMultiAnswers,
+                                              Filter(colDynamicMultiAnswers, QuestionId <> _qId)
+                                          );
+                                          ForAll(
+                                              cmbDynamicMulti.SelectedItems As selItem,
+                                              Collect(
+                                                  colDynamicMultiAnswers,
+                                                  {
+                                                      QuestionId:  _qId,
+                                                      OptionValue: selItem.'Option Value'
+                                                  }
+                                              )
+                                          );
+                                          If(
+                                              IsBlank(LookUp(colDynamicAnswers, QuestionId = _qId)),
+                                              Collect(colDynamicAnswers, {
+                                                  QuestionId:    _qId,
+                                                  QuestionLabel: _label,
+                                                  AnswerText:    Concat(cmbDynamicMulti.SelectedItems, 'Option Value', "|"),
+                                                  AnswerBool:    false,
+                                                  AnswerDate:    Blank()
+                                              }),
+                                              Patch(colDynamicAnswers,
+                                                  LookUp(colDynamicAnswers, QuestionId = _qId),
+                                                  { AnswerText: Concat(cmbDynamicMulti.SelectedItems, 'Option Value', "|") }
+                                              )
+                                          ),
+                                          Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
+                                      );
+                                      Set(varCategoryStepValid,
+                                          CountRows(
+                                              Filter(
+                                                  colDynamicCategoryQuestions,
+                                                  'Is Required' = true &&
+                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
+                                              )
+                                          ) = 0
+                                      );
+                                    RadiusBottomLeft: =gblTheme.RadiusMd
+                                    RadiusBottomRight: =gblTheme.RadiusMd
+                                    RadiusTopLeft: =gblTheme.RadiusMd
+                                    RadiusTopRight: =gblTheme.RadiusMd
+                                    Visible: =ThisItem.'Question Type' = 'Question Type (Intake Questions)'.'Multi-Select'
+                                    Width: =Parent.Width/2
+                                    Y: =If(!IsBlank(ThisItem.'Section Label'), 48, 24)
+                              - lblDynamicQuestion:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Color: =gblTheme.ColorTextPrimary
+                                    FontWeight: =FontWeight.Semibold
+                                    Height: =30
+                                    OnSelect: =Select(Parent)
+                                    Text: =ThisItem.'Question Label'
+                                    VerticalAlign: =VerticalAlign.Top
+                                    Width: =Parent.Width
+                                    Wrap: =false
+                                    Y: =If(!IsBlank(ThisItem.'Section Label'), 24, 0)
+                              - lblDynamicSection:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    AutoHeight: =true
+                                    Color: =gblTheme.ColorTextMuted
+                                    FontWeight: =FontWeight.Semibold
+                                    Height: =20
+                                    OnSelect: =Select(Parent)
+                                    PaddingBottom: =4
+                                    PaddingLeft: =
+                                    PaddingRight: =
+                                    PaddingTop: =
+                                    Size: =gblTheme.FontSizeSmall
+                                    Text: =ThisItem.'Hint Text'
+                                    Visible: =!IsBlank(ThisItem.'Section Label')
+                                    Width: =Parent.Width
+                              - txtDynamicText:
+                                  Control: ModernTextInput@1.1.0
+                                  Properties:
+                                    BorderColor: =gblTheme.ColorBorder
+                                    Color: =gblTheme.ColorTextPrimary
+                                    Fill: =gblTheme.ColorSurface
+                                    Height: =44
+                                    OnChange: |-
+                                      =IfError(
+                                          If(
+                                              IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question')),
+                                              Collect(colDynamicAnswers, {
+                                                  QuestionId:    ThisItem.'Intake Question',
+                                                  QuestionLabel: ThisItem.'Question Label',
+                                                  AnswerText:    Self.Text,
+                                                  AnswerBool:    false,
+                                                  AnswerDate:    Blank()
+                                              }),
+                                              Patch(
+                                                  colDynamicAnswers,
+                                                  LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'),
+                                                  { AnswerText: Self.Text, AnswerBool: false, AnswerDate: Blank() }
+                                              )
+                                          ),
+                                          Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
+                                      );
+                                      Set(varCategoryStepValid,
+                                          CountRows(
+                                              Filter(
+                                                  colDynamicCategoryQuestions,
+                                                  'Is Required' = true &&
+                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
+                                              )
+                                          ) = 0
+                                      )
+                                    PaddingLeft: =12
+                                    PaddingRight: =12
+                                    Placeholder: =ThisItem.'Hint Text'
+                                    RadiusBottomLeft: =gblTheme.RadiusMd
+                                    RadiusBottomRight: =gblTheme.RadiusMd
+                                    RadiusTopLeft: =gblTheme.RadiusMd
+                                    RadiusTopRight: =gblTheme.RadiusMd
+                                    Visible: =ThisItem.'Question Type' = 'Question Type (Intake Questions)'.Text
+                                    Width: =Parent.Width/2
+                                    Y: =If(!IsBlank(ThisItem.'Section Label'), 48, 24)
+                              - txtDynamicNumber:
+                                  Control: ModernTextInput@1.1.0
+                                  Properties:
+                                    BorderColor: =gblTheme.ColorBorder
+                                    Color: =gblTheme.ColorTextPrimary
+                                    Fill: =gblTheme.ColorSurface
+                                    Height: =44
+                                    OnChange: |-
+                                      =IfError(
+                                          If(
+                                              IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question')),
+                                              Collect(colDynamicAnswers, {
+                                                  QuestionId:    ThisItem.'Intake Question',
+                                                  QuestionLabel: ThisItem.'Question Label',
+                                                  AnswerText:    Text(Self.Text),
+                                                  AnswerBool:    false,
+                                                  AnswerDate:    Blank()
+                                              }),
+                                              Patch(colDynamicAnswers,
+                                                  LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'),
+                                                  { AnswerText: Text(Self.Text) }
+                                              )
+                                          ),
+                                          Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
+                                      );
+                                      Set(varCategoryStepValid,
+                                          CountRows(
+                                              Filter(
+                                                  colDynamicCategoryQuestions,
+                                                  'Is Required' = true &&
+                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
+                                              )
+                                          ) = 0
+                                      )
+                                    PaddingLeft: =12
+                                    PaddingRight: =12
+                                    Placeholder: =ThisItem.'Hint Text'
+                                    RadiusBottomLeft: =gblTheme.RadiusMd
+                                    RadiusBottomRight: =gblTheme.RadiusMd
+                                    RadiusTopLeft: =gblTheme.RadiusMd
+                                    RadiusTopRight: =gblTheme.RadiusMd
+                                    Visible: =ThisItem.'Question Type' = 'Question Type (Intake Questions)'.Number
+                                    Width: =Parent.Width/2
+                                    Y: =If(!IsBlank(ThisItem.'Section Label'), 48, 24)
+                              - ddDynamicDropdown:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    BorderColor: =gblTheme.ColorBorder
+                                    Color: =gblTheme.ColorTextPrimary
+                                    Fill: =gblTheme.ColorSurface
+                                    Height: =44
+                                    ItemDisplayText: =ThisItem.'Option Label'
+                                    Items: |-
+                                      =Filter(
+                                          colQuestionOptions,
+                                          Question.'Intake Question' = ThisItem.'Intake Question'
+                                      )
+                                    OnChange: |
+                                      =
+                                      IfError(
+                                                                                      If(
+                                                                                          IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question')),
+                                                                                          Collect(
+                                                                                              colDynamicAnswers,
+                                                                                              {
+                                                                                                  QuestionId:    ThisItem.'Intake Question',
+                                                                                                  QuestionLabel: ThisItem.'Question Label',
+                                                                                                  AnswerText:    Self.Selected.'Option Value',
+                                                                                                  AnswerBool:    false,
+                                                                                                  AnswerDate:    Blank()
+                                                                                              }
+                                                                                          ),
+                                                                                          Patch(
+                                                                                              colDynamicAnswers,
+                                                                                              LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'),
+                                                                                              { AnswerText: Self.Selected.'Option Value' }
+                                                                                          )
+                                                                                      ),
+                                                                                      Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
+                                                                                  ); Set(varCategoryStepValid,
+                                          CountRows(
+                                              Filter(
+                                                  colDynamicCategoryQuestions,
+                                                  'Is Required' = true &&
+                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
+                                              )
+                                          ) = 0
+                                      );
+                                    RadiusBottomLeft: =gblTheme.RadiusMd
+                                    RadiusBottomRight: =gblTheme.RadiusMd
+                                    RadiusTopLeft: =gblTheme.RadiusMd
+                                    RadiusTopRight: =gblTheme.RadiusMd
+                                    Visible: =ThisItem.'Question Type' = 'Question Type (Intake Questions)'.Choice
+                                    Width: =Parent.Width/2
+                                    Y: =If(!IsBlank(ThisItem.'Section Label'), 48, 24)
+                              - DatePicker2:
+                                  Control: ModernDatePicker@1.0.0
+                                  Properties:
+                                    BorderColor: =gblTheme.ColorBorder
+                                    Fill: =gblTheme.ColorSurface
+                                    Height: =44
+                                    OnChange: |
+                                      =
+                                      IfError(
+                                                                                      If(
+                                                                                          IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question')),
+                                                                                          Collect(
+                                                                                              colDynamicAnswers,
+                                                                                              {
+                                                                                                  QuestionId:    ThisItem.'Intake Question',
+                                                                                                  QuestionLabel: ThisItem.'Question Label',
+                                                                                                  AnswerText:    Text(Self.SelectedDate, "[$-en-US]yyyy-mm-dd"),
+                                                                                                  AnswerBool:    false,
+                                                                                                  AnswerDate:    Self.SelectedDate
+                                                                                              }
+                                                                                          ),
+                                                                                          Patch(
+                                                                                              colDynamicAnswers,
+                                                                                              LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'),
+                                                                                              {
+                                                                                                  AnswerDate: Self.SelectedDate,
+                                                                                                  AnswerText: Text(Self.SelectedDate, "[$-en-US]yyyy-mm-dd")
+                                                                                              }
+                                                                                          )
+                                                                                      ),
+                                                                                      Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
+                                                                                  );
+                                                                                  Set(varCategoryStepValid,
+                                          CountRows(
+                                              Filter(
+                                                  colDynamicCategoryQuestions,
+                                                  'Is Required' = true &&
+                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
+                                              )
+                                          ) = 0
+                                      );
+                                    Visible: =ThisItem.'Question Type' = 'Question Type (Intake Questions)'.Date
+                                    Width: =Parent.Width/2
+                                    Y: =If(!IsBlank(ThisItem.'Section Label'), 48, 24)
+                              - cntDynamicToggle:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    Height: =44
+                                    LayoutAlignItems: =LayoutAlignItems.Center
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    LayoutGap: =16
+                                    PaddingBottom: =8
+                                    PaddingLeft: =8
+                                    PaddingRight: =8
+                                    PaddingTop: =8
+                                    Visible: =ThisItem.'Question Type' = 'Question Type (Intake Questions)'.'Yes-No'
+                                    Width: =Parent.Width
+                                    Y: =If(!IsBlank(ThisItem.'Section Label'), 48, 24)
+                                  Children:
+                                    - rdbDynamicYesNo:
+                                        Control: ModernRadio@1.0.0
+                                        Properties:
+                                          Height: =44
+                                          Items: |-
+                                            =Table(
+                                                {Value: "Yes"},
+                                                {Value: "No"}
+                                            )
+                                          Layout: =OptionLayout.Horizontal
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          OnChange: |-
+                                            =IfError(
+                                                If(
+                                                    IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question')),
+                                                    Collect(colDynamicAnswers, {
+                                                        QuestionId:    ThisItem.'Intake Question',
+                                                        QuestionLabel: ThisItem.'Question Label',
+                                                        AnswerText:    rdbDynamicYesNo.Selected.Value,
+                                                        AnswerBool:    rdbDynamicYesNo.Selected.Value = "Yes",
+                                                        AnswerDate:    Blank()
+                                                    }),
+                                                    Patch(
+                                                        colDynamicAnswers,
+                                                        LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'),
+                                                        {
+                                                            AnswerText: rdbDynamicYesNo.Selected.Value,
+                                                            AnswerBool: rdbDynamicYesNo.Selected.Value = "Yes"
+                                                        }
+                                                    )
+                                                ),
+                                                Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
+                                            );
+                                            Set(varCategoryStepValid,
+                                                CountRows(
+                                                    Filter(
+                                                        colDynamicCategoryQuestions,
+                                                        'Is Required' = true &&
+                                                        IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
+                                                    )
+                                                ) = 0
+                                            )
+            - cntMainFormNav:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  DropShadow: =DropShadow.None
+                  FillPortions: =0
+                  Height: =56
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =gblTheme.Space2
+                  LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                  LayoutMinHeight: =56
+                  PaddingBottom: =gblTheme.Space2
+                  PaddingLeft: =gblTheme.Space2
+                  PaddingRight: =gblTheme.Space2
+                  PaddingTop: =gblTheme.Space2
+                  Visible: =varWizardStep > 0
+                  Width: =Parent.Width
+                  Y: =
+                Children:
+                  - btnMainFormBack:
+                      Control: Button@0.0.45
+                      Properties:
+                        Align: =Align.Center
+                        Appearance: ='ButtonCanvas.Appearance'.Secondary
+                        BasePaletteColor: =gblTheme.ColorDanger
+                        FillPortions: =1
+                        Height: =40
+                        IconStyle: ='ButtonCanvas.IconStyle'.Filled
+                        LayoutMaxHeight: =40
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnSelect: |-
+                          =Switch(
+                                                        varWizardStep,
+                                                        1, Set(varWizardStep, 0),
+                                                        2, Set(varWizardStep, 1),
+                                                        3, Set(varWizardStep, 1),
+                                                        4, Set(varWizardStep, 1),
+                                                        5, Set(varWizardStep, 1),
+                                                        6, Set(varWizardStep, 1),
+                                                        7, Set(varWizardStep, 1),
+                                                        8, Set(varWizardStep, 1),
+                                                        9, Set(varWizardStep, 1)
+                                                    )
+                        PaddingTop: =2
+                        Text: ="Back"
+                        VerticalAlign: =VerticalAlign.Middle
+                        Visible: =varWizardStep > 0
+                        Width: =120
+                  - btnSaveDraft:
+                      Control: Button@0.0.45
+                      Properties:
+                        Appearance: ='ButtonCanvas.Appearance'.Secondary
+                        BasePaletteColor: =gblColorText
+                        DisplayMode: =If(IsBlank(txtRequestTitle.Text), DisplayMode.Disabled, DisplayMode.Edit)
+                        FillPortions: =1
+                        Icon: ="Save"
+                        IconStyle: ="Filled"
+                        LayoutMaxHeight: =40
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnSelect: |-
+                          =If(
+                              IsBlank(txtRequestTitle.Text),
+                              Notify("Please enter a Request Title before saving.", NotificationType.Warning),
+                              IfError(
+                                  With(
+                                      {
+                                          _saved: Patch(
+                                              'Project Intake Requests',
+                                              If(
+                                                  IsBlank(varProjectRec) Or IsBlank(varProjectRec.'Project Intake Request'),
+                                                  Defaults('Project Intake Requests'),
+                                                  varProjectRec
+                                              ),
+                                              {
+                                                  'Request Title':                         txtRequestTitle.Text,
+                                                  'Sponsor Name':                          txtRequestSponsor.Text,
+                                                  'What problem are you trying to solve?': txtBusinessProblem.Text,
+                                                  'Project Category':                      ddProjectCategory.Selected.Value,
+                                                  'Project Intake Status':                 nod_pr_status_choice.Draft,
+                                                  nod_SubmittedBy:                         varAppUser.'Email Address (emailaddress)',
+                                                  'Dynamic Answers':                       JSON(
+                                                      ForAll(
+                                                          colDynamicAnswers,
+                                                          {
+                                                              QuestionIdText: Text(QuestionId),
+                                                              QuestionLabel:  QuestionLabel,
+                                                              AnswerText:     AnswerText,
+                                                              AnswerBool:     AnswerBool,
+                                                              AnswerDate:     Text(AnswerDate, DateTimeFormat.ShortDate)
+                                                          }
+                                                      )
+                                                  )
+                                              }
+                                          )
+                                      },
+                                      Set(varProjectRec, _saved);
+                                      If(
+                                          IsBlank(LookUp(colMyRequests, 'Project Intake Request' = _saved.'Project Intake Request')),
+                                          Collect(colMyRequests, _saved),
+                                          Patch(colMyRequests,
+                                              LookUp(colMyRequests, 'Project Intake Request' = _saved.'Project Intake Request'),
+                                              _saved
+                                          )
+                                      );
+                                      Set(varHomeDataStale, true);
+                                      Set(varMRNeedsRefresh, true);
+                                      Notify("Draft saved.", NotificationType.Success);
+                                  ),
+                                  Notify("Save failed: " & FirstError.Message, NotificationType.Error)
+                              )
+                          )
+                        Text: ="Save Draft"
+                        Visible: =varWizardStep >= 1
+                  - btnMainFormNext:
+                      Control: Button@0.0.45
+                      Properties:
+                        Align: =Align.Center
+                        Appearance: ='ButtonCanvas.Appearance'.Primary
+                        BasePaletteColor: =gblTheme.ColorBrandAccent
+                        DisplayMode: |-
+                          =Switch(
+                              varWizardStep,
+                              1, If(
+                                  IsBlank(txtRequestTitle.Text) Or
+                                  IsBlank(txtRequestSponsor.Text) Or
+                                  IsBlank(ddProjectCategory.Selected) Or
+                                  IsBlank(txtBusinessProblem.Text),
+                                  DisplayMode.Disabled,
+                                  DisplayMode.Edit
+                              ),
+                              If(varCategoryStepValid, DisplayMode.Edit, DisplayMode.Disabled)
+                          )
+                        FillPortions: =1
+                        Height: =40
+                        IconStyle: ='ButtonCanvas.IconStyle'.Filled
+                        LayoutMaxHeight: =40
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnSelect: |-
+                          =Set(varIsSaving, true);
+                          IfError(
+                              Set(
+                                  varProjectRec,
+                                  Patch(
+                                      'Project Intake Requests',
+                                      If(
+                                          IsBlank(varProjectRec) Or IsBlank(varProjectRec.'Project Intake Request'),
+                                          Defaults('Project Intake Requests'),
+                                          varProjectRec
+                                      ),
+                                      {
+                                          'Request Title':                         txtRequestTitle.Text,
+                                          'Sponsor Name':                          txtRequestSponsor.Text,
+                                          'What problem are you trying to solve?': txtBusinessProblem.Text,
+                                          'Project Category':                      ddProjectCategory.Selected.Value,
+                                          'IT Systems Impacted':                   ddITSystems.SelectedItems,
+                                          'Benefit Amount':
+                                              If(
+                                                  IsBlank(txtBenefitAmount.Text) Or Not(IsNumeric(txtBenefitAmount.Text)),
+                                                  Blank(),
+                                                  Value(txtBenefitAmount.Text)
+                                              ),
+                                          'Dynamic Answers': JSON(
+                                              ForAll(
+                                                  colDynamicAnswers,
+                                                  {
+                                                      QuestionIdText: Text(QuestionId),
+                                                      QuestionLabel:  QuestionLabel,
+                                                      AnswerText:     AnswerText,
+                                                      AnswerBool:     AnswerBool,
+                                                      AnswerDate:     Text(AnswerDate, DateTimeFormat.ShortDate)
+                                                  }
+                                              )
+                                          ),
+                                          nod_SubmittedBy:         varAppUser.'Email Address (emailaddress)',
+                                          'Project Intake Status': nod_pr_status_choice.Draft
+                                      }
+                                  )
+                              );
+                              Set(varIsSaving, false);
+
+                              // ── ROUTING LOGIC ────────────────────────────────────────────────────────
+                              If(
+                                  varWizardStep = 1,
+
+                                  // On Step 1 — check if this category has dynamic questions
+                                  If(
+                                      IsEmpty(colIntakeQuestions),
+                                      ClearCollect(colIntakeQuestions, Filter('Intake Questions', 'Is Active' = true))
+                                  );
+                                  If(
+                                      CountRows(
+                                          Filter(
+                                              colIntakeQuestions,
+                                              'Project Category' = ddProjectCategory.Selected.Value,
+                                              'Is Active' = true
+                                          )
+                                      ) > 0,
+
+                                      // Questions exist — advance to category step
+                                      Set(varCategoryStepValid, false);
+                                      Set(varWizardStep, 2),
+
+                                      // No questions — refresh record and go to review
+                                      Set(
+                                          varProjectRec,
+                                          LookUp(
+                                              'Project Intake Requests',
+                                              'Project Intake Request' = varProjectRec.'Project Intake Request'
+                                          )
+                                      );
+                                      Navigate(scrReview, ScreenTransition.Fade)
+                                  ),
+
+                                  // On Step 2+ — category questions done, refresh record and go to review
+                                  Set(
+                                      varProjectRec,
+                                      LookUp(
+                                          'Project Intake Requests',
+                                          'Project Intake Request' = varProjectRec.'Project Intake Request'
+                                      )
+                                  );
+                                  Navigate(scrReview, ScreenTransition.Fade)
+                              ),
+                              // ─────────────────────────────────────────────────────────────────────────
+
+                              Notify("Save failed. Please try again.", NotificationType.Error);
+                              Set(varIsSaving, false)
+                          )
+                        PaddingTop: =2
+                        Text: ="Next"
+                        VerticalAlign: =VerticalAlign.Middle
+                        Visible: =varWizardStep >= 1
+                        Width: =120
+      - cntWizardHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            BorderColor: =gblTheme.ColorBorder
+            BorderThickness: =1
+            Fill: =gblTheme.ColorSurface
+            Height: =56
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutDirection: =LayoutDirection.Horizontal
+            LayoutGap: =gblTheme.Space3
+            LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+            PaddingLeft: =gblTheme.Space4
+            PaddingRight: =gblTheme.Space4
+            Width: =Parent.Width
+            Y: =cmpHeader_4.Height + cmpPrimaryNav_6.Height
+          Children:
+            - cntWizardLeft:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  Fill: =Color.Transparent
+                  Height: =
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =gblTheme.Space2
+                  LayoutMaxHeight: =56
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                Children:
+                  - btnWizardClose:
+                      Control: Button@0.0.45
+                      Properties:
+                        AccessibleLabel: ="Close wizard"
+                        Appearance: ='ButtonCanvas.Appearance'.Transparent
+                        Icon: ="DismissCircle"
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnSelect: |-
+                          =If(
+                              varWizardStep = 0 || Confirm("Exit the wizard? Unsaved changes will be lost."),
+                              Navigate(scrHome, ScreenTransition.Fade)
+                          )
+                        Text: =""
+                        Width: =32
+                  - txtWizardTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        AutoHeight: =true
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeH2
+                        Text: ="New Request"
+            - cntWizardCenter:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  Fill: =Color.Transparent
+                  FillPortions: =2
+                  Height: =56
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                  LayoutMaxHeight: =56
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                Children:
+                  - cmpStepper_1:
+                      Control: CanvasComponent
+                      ComponentName: cmpStepper
+                      Properties:
+                        CurrentIndex: |-
+                          =Switch(true,
+                              varWizardStep = 0,                              0,
+                              varWizardStep = 1,                              1,
+                              varWizardStep >= 2 And varWizardStep <= 9,      2,
+                              0
+                          )
+                        Height: =48
+                        Items: |-
+                          =Table(
+                              {Key: "0", Label: "Classification", Icon: "Tag"},
+                              {Key: "1", Label: "Details",        Icon: "Edit"},
+                              {Key: "2", Label: "Category",       Icon: "BulletedList"}
+                          )
+                        OnStepSelect: =
+                        Variant: ="pivot"
+                        Width: =Min(480, Parent.Width)
+      - cmpPrimaryNav_6:
+          Control: CanvasComponent
+          ComponentName: cmpPrimaryNav
+          Properties:
+            CurrentScreen: ="requestform"
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =48
+            NavItems: =Filter(colNavItems, Show = true)
+            OnNavItemSelect: |-
+              =Switch(SelectedKey,
+                  "home",     Navigate(scrHome,        ScreenTransition.Fade),
+                  "requests", Navigate(scrMyRequests,  ScreenTransition.Fade),
+                  "queue",    Navigate(scrPMOQueue,    ScreenTransition.Fade),
+                  "itestimate", Navigate(scrITEstimate, ScreenTransition.Fade)
+              )
+            Width: =1366
+            Y: =cmpHeader_4.Y + cmpHeader_4.Height
+      - cmpHeader_4:
+          Control: CanvasComponent
+          ComponentName: cmpHeader
+          Properties:
+            EnvironmentLabel: =""
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =56
+            OnBackSelect: =
+            ShowBackButton: =true
+            Title: '="New Request" '
+            Width: =Parent.Width
