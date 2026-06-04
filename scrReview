@@ -1,0 +1,448 @@
+Screens:
+  scrReview:
+    Properties:
+      OnVisible: "=Set(varReviewTabReset, true);\r\nSet(varReviewTab, \"Overview\");\r\nSet(varReviewTabReset, false);\r\nSet(varSelectedRequest, varProjectRec);\r\nSet(varReviewConfirmed, false);\r\n\r\n\r\nSet(\r\n    varProjectRec,\r\n    LookUp(\r\n        'Project Intake Requests',\r\n        'Project Intake Request' = varProjectRec.'Project Intake Request'\r\n    )\r\n);\r\n\r\nClearCollect(\r\n    colReviewAnswers,\r\n\r\n    // ── Section: Request Details ──────────────────────────────────────────\r\n    { Section: \"Request Details\",  Label: \"Request Title\",    Value: varProjectRec.'Request Title',                                    SortOrder: 1 },\r\n    { Section: \"Request Details\",  Label: \"Business Sponsor\", Value: varProjectRec.'Sponsor Name',                                     SortOrder: 2 },\r\n    \r\n{ Section: \"Request Details\",\r\n  Label: \"Project Category\",\r\n  Value: Text(varProjectRec.'Project Category'),\r\n  SortOrder: 4\r\n},\r\n\r\n    // ── Section: Benefit & Priority ───────────────────────────────────────\r\n    { Section: \"Benefit & Priority\", Label: \"Benefit Amount\",  Value: If(IsBlank(varProjectRec.'Benefit Amount'), \"—\", Text(varProjectRec.'Benefit Amount', \"$#,##0\")), SortOrder: 5 },\r\n    { Section: \"Benefit & Priority\", Label: \"Benefit Score\",   Value: If(IsBlank(varProjectRec.'Benefit Score'),\r\n    \"—\", Text(varProjectRec.'Benefit Score')), SortOrder: 6 },\r\n    { Section: \"Benefit & Priority\", Label: \"Revenue Priority\",Value: If(varRevenuePriority, \"Yes\", \"No\"),                                                               SortOrder: 7 },\r\n\r\n    // ── Section: IT & Systems ─────────────────────────────────────────────\r\n    { Section: \"IT & Systems\", Label: \"IT Systems Impacted\",\r\n  Value: If(\r\n      IsEmpty(varProjectRec.'IT Systems Impacted'),\r\n      \"None\",\r\n      Concat(varProjectRec.'IT Systems Impacted', Value, \", \")\r\n  ),\r\n  SortOrder: 8\r\n},\r\n\r\n    // ── Section: Classification ───────────────────────────────────────────\r\n    { Section: \"Classification\", Label: \"Outside Team?\",       Value: varGateAnswer_Q0,  SortOrder: 9 },\r\n    { Section: \"Classification\", Label: \"Shared Resource?\",    Value: varGateAnswer_Q1,  SortOrder: 10 },\r\n    { Section: \"Classification\", Label: \"Clarity\",             Value: varGateAnswer_Q2,  SortOrder: 11 },\r\n    { Section: \"Classification\", Label: \"Duration\",            Value: varGateAnswer_Q3,  SortOrder: 12 },\r\n    { Section: \"Classification\", Label: \"Revenue Priority?\",   Value: varGateAnswer_Q4,  SortOrder: 13 },\r\n    { Section: \"Classification\", Label: \"Classification\",\r\n      Value: Switch(\r\n          true,\r\n          varHasSteeringTrigger, \"Steering Committee\",\r\n          varRequiresPMOTriage,  \"PMO Triage\",\r\n          varJDI,                \"Just Do It\",\r\n          varRevenuePriority,    \"Revenue Priority\",\r\n          \"Standard\"\r\n      ),\r\n      SortOrder: 14\r\n    },\r\n\r\n    // ── Section: Category Questions ───────────────────────────────────────\r\n    // Appended from colDynamicAnswers so each answered question appears inline\r\n    If(\r\n    IsBlank(varProjectRec.'Dynamic Answers'),\r\n    Blank(),\r\n    \r\nForAll(\r\n    Table(ParseJSON(varProjectRec.'Dynamic Answers')),\r\n    {\r\n        Section: \"Category Questions\",\r\n        Label: Text(ThisRecord.Value.QuestionLabel),\r\n        Value: Text(ThisRecord.Value.AnswerText),\r\n        SortOrder: 100\r\n    })))"
+    Children:
+      - conReviewShell:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            Height: =664
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutDirection: =LayoutDirection.Vertical
+            PaddingBottom: =8
+            PaddingTop: =8
+            Width: =Parent.Width
+            Y: =104
+          Children:
+            - conReviewBody:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Height: =Parent.Height
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =16
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  LayoutOverflowY: =LayoutOverflow.Scroll
+                  PaddingBottom: =8
+                  PaddingLeft: =16
+                  PaddingRight: =16
+                  PaddingTop: =16
+                  Width: =Parent.Width
+                Children:
+                  - tabReviewSections:
+                      Control: ModernTabList@1.0.0
+                      Properties:
+                        Default: |-
+                          =LookUp(
+                              Table(
+                                  { Key: "Overview",  Label: "Overview" },
+                                  { Key: "Category",  Label: "Category Details" },
+                                  { Key: "Systems",   Label: "Systems Impacted" },
+                                  { Key: "Scores",    Label: "Scores & Routing" }
+                              ),
+                              Key = "Overview"
+                          )
+                        ItemDisplayText: =ThisItem.Key
+                        Items: |-
+                          =// Comma version
+                          Table(
+                              { Key: "Overview",    Label: "Overview" },
+                              { Key: "Category",    Label: "Category Details" },
+                              { Key: "Systems",     Label: "Systems Impacted" },
+                              { Key: "Scores",      Label: "Scores & Routing" }
+                          )
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnSelect: =Set(varReviewTab, Self.Selected.Key)
+                        Width: =Parent.Width
+                  - conReview_Overview:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        Height: =Parent.Height - tabReviewSections.Height - conReviewFooter.Height
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutGap: =12
+                        LayoutMaxHeight: =456
+                        LayoutMinHeight: =456
+                        LayoutMinWidth: =16
+                        PaddingBottom: =8
+                        PaddingLeft: =8
+                        PaddingRight: =8
+                        PaddingTop: =8
+                        Visible: =varReviewTab = "Overview" && !IsBlank(varProjectRec)
+                        Width: =Parent.Width
+                        X: =40
+                        Y: =40
+                      Children:
+                        - lblIntakeTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              FontWeight: =FontWeight.Bold
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =14
+                              Text: ="Request Title"
+                              Width: =Parent.Width
+                        - lblIntakeValue:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =13
+                              Text: =varProjectRec.'Request Title'
+                              Width: =Parent.Width
+                        - lblIntakeTitle_Sponsor:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              FontWeight: =FontWeight.Bold
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =14
+                              Text: ="Business Sponsor"
+                              Width: =Parent.Width
+                        - lblIntakeSponsorValue:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =13
+                              Text: =varProjectRec.'Sponsor Name'
+                              Width: =Parent.Width
+                        - lblIntakeProblem:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              FontWeight: =FontWeight.Bold
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =14
+                              Text: ="Business Problem"
+                              Width: =Parent.Width
+                        - lblIntakeProblemValue:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AutoHeight: =true
+                              FillPortions: =1
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =13
+                              Text: =varProjectRec.'What problem are you trying to solve?'
+                              Width: =Parent.Width
+                        - lblIntakeCategoryField:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              FontWeight: =FontWeight.Bold
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =14
+                              Text: ="Project Category"
+                              Width: =Parent.Width
+                        - lblIntakeProjectCategory:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =13
+                              Text: =Text(varProjectRec.'Project Category')
+                              Width: =Parent.Width
+                        - lblIntakeBenefit:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              FontWeight: =FontWeight.Bold
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =14
+                              Text: ="Benefit Amount"
+                              Width: =Parent.Width
+                        - lblIntakeBenefitAmountValue:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =13
+                              Text: ="$" & Text(varProjectRec.'Benefit Amount', "##,###")
+                              Width: =Parent.Width
+                  - conReview_Category:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        Height: =Parent.Height - tabReviewSections.Height - conReviewFooter.Height
+                        LayoutAlignItems: =LayoutAlignItems.Stretch
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutGap: =12
+                        LayoutMaxHeight: =456
+                        LayoutMinHeight: =456
+                        LayoutMinWidth: =16
+                        PaddingBottom: =8
+                        PaddingLeft: =8
+                        PaddingRight: =8
+                        PaddingTop: =8
+                        Visible: =varReviewTab = "Category"
+                        Width: =Parent.Width
+                        X: =40
+                        Y: =40
+                      Children:
+                        - galReviewAnswers:
+                            Control: Gallery@2.15.0
+                            Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+                            Properties:
+                              AlignInContainer: =AlignInContainer.SetByContainer
+                              Height: =456
+                              Items: =colReviewAnswers
+                              Width: =1366
+                            Children:
+                              - recReviewRowDivider:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    Fill: =gblTheme.ColorBorder
+                                    Height: =1
+                                    OnSelect: =Select(Parent)
+                                    Visible: =ThisItem.IsSelected
+                                    Width: =Parent.Width
+                                    Y: =55
+                              - conReviewAnswerRow:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    Height: =56
+                                    LayoutAlignItems: =LayoutAlignItems.Center
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    LayoutGap: =16
+                                    PaddingBottom: =8
+                                    PaddingTop: =8
+                                    Width: =Parent.Width
+                                  Children:
+                                    - lblReviewQuestionLabel:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Color: =gblTheme.ColorTextSecondary
+                                          FontWeight: =FontWeight.Semibold
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          Size: =gblTheme.FontSizeBody
+                                          Text: =ThisItem.Label
+                                          Width: =Parent.Width * 0.5
+                                    - lblReviewAnswerValue:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          AutoHeight: =true
+                                          Color: =gblTheme.ColorTextPrimary
+                                          FontWeight: =FontWeight.Semibold
+                                          LayoutMinHeight: =16
+                                          LayoutMinWidth: =16
+                                          Size: =gblTheme.FontSizeBody
+                                          Text: =If(IsBlank(ThisItem.Value), "—", ThisItem.Value)
+                                          Width: =Parent.Width * 0.5
+                  - conSystems:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        Height: =Parent.Height - tabReviewSections.Height - conReviewFooter.Height
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutGap: =12
+                        LayoutMaxHeight: =456
+                        LayoutMinHeight: =456
+                        LayoutMinWidth: =16
+                        PaddingBottom: =8
+                        PaddingLeft: =8
+                        PaddingRight: =8
+                        PaddingTop: =8
+                        Visible: =varReviewTab = "Systems"
+                      Children:
+                        - lblSystemsImpactField:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              FontWeight: =FontWeight.Bold
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =14
+                              Text: ="Systems Impacted"
+                              Width: =Parent.Width
+                        - SystemsImpact:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AutoHeight: =true
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =13
+                              Text: |-
+                                =Concat(
+                                    varProjectRec.'IT Systems Impacted',
+                                    "• " & Value & Char(10)
+                                )
+                              Width: =Parent.Width
+                  - conScores:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        Height: =Parent.Height - tabReviewSections.Height - conReviewFooter.Height
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutGap: =12
+                        LayoutMaxHeight: =456
+                        LayoutMinHeight: =456
+                        LayoutMinWidth: =16
+                        PaddingBottom: =8
+                        PaddingLeft: =8
+                        PaddingRight: =8
+                        PaddingTop: =8
+                        Visible: =varReviewTab = "Scores"
+                      Children:
+                        - lblBenefitScore:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              FontWeight: =FontWeight.Bold
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =14
+                              Text: ="Benefit Score"
+                              Width: =Parent.Width
+                        - lblBenefitScoreValue:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AutoHeight: =true
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =13
+                              Text: =varProjectRec.'Benefit Score'
+                              Width: =Parent.Width
+                        - lblEffortField:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              FontWeight: =FontWeight.Bold
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =14
+                              Text: ="Effort Score"
+                              Width: =Parent.Width
+                        - lblEffortScoreValue:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AutoHeight: =true
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =13
+                              Text: |-
+                                =
+                                If(
+                                    IsBlank(varProjectRec.'IT Effort Score'),
+                                    "Pending IT estimate",
+                                    Text(varProjectRec.'IT Effort Score')
+                                )
+                              Width: =Parent.Width
+            - conReviewFooter:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  FillPortions: =0
+                  Height: =62
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  PaddingBottom: =8
+                  PaddingLeft: =16
+                  PaddingRight: =16
+                  PaddingTop: =8
+                  Width: =Parent.Width
+                Children:
+                  - btnReviewBack:
+                      Control: Button@0.0.45
+                      Properties:
+                        Layout: ='ButtonCanvas.Layout'.TextOnly
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnSelect: |-
+                          =// Comma version
+                          Set(varWizardMode, "Resume");
+                          Set(varGateStep, Blank());
+                          Set(varWizardStep, 
+                              Switch(
+                                  varSelectedCategory,
+                                  nod_pr_category.EDI,                          2,
+                                  nod_pr_category.'Application/ERP',              3,
+                                  nod_pr_category.'Data/BI',                      4,
+                                  nod_pr_category.'Infrastructure/Security',      5,
+                                  nod_pr_category.Logistics,                    6,
+                                  nod_pr_category.'M&A, Consolidations', 7,
+                                  nod_pr_category.eCommerce,                    8,
+                                  1
+                              )
+                          );
+                          Navigate(scrIntakeWizard, ScreenTransition.UnCoverRight);
+                        Text: ="Back"
+                  - btnReviewSubmit:
+                      Control: Button@0.0.45
+                      Properties:
+                        BasePaletteColor: =If(varRequiresPMOTriage, gblColorRed, gblColorGreen)
+                        Layout: ='ButtonCanvas.Layout'.TextOnly
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnSelect: |-
+                          =IfError(
+                              With(
+                                  {
+                                      _submitted: Patch(
+                                          'Project Intake Requests',
+                                          varProjectRec,
+                                          {
+                                              'Project Intake Status': nod_pr_status_choice.'IT Estimate',
+                                              'IT Estimate Status': 'IT Estimate Status (Project Intake Requests)'.Received,
+                                              nod_SubmittedBy:         varAppUser.'Email Address (emailaddress)'
+                                          }
+                                      )
+                                  },
+                                  Set(varProjectRec, _submitted);
+                                  Set(varSelectedRequest, _submitted);
+                                  Set(varHomeDataStale, true);
+                                  Set(varMRNeedsRefresh, true);
+                                  Notify("Request submitted successfully!", NotificationType.Success);
+                                  Navigate(scrMyRequests, ScreenTransition.Fade)
+                              ),
+                              Notify("Submit failed: " & FirstError.Message, NotificationType.Error)
+                          )
+                        Text: =If(varRequiresPMOTriage, "Submit to PMO ✓", "Submit to IT ✓")
+                        Width: =150
+      - cmpPrimaryNav_8:
+          Control: CanvasComponent
+          ComponentName: cmpPrimaryNav
+          Properties:
+            CurrentScreen: ="Text"
+            Fill: =RGBA(1, 81, 52, 1)
+            Height: =48
+            NavItems: |-
+              =Table(
+                  { Key: "home",        Label: "Home",        IconName: "Home",        ScreenName: "scrHome",         BadgeCount: 0, Show: true },
+                  { Key: "requestform", Label: "Intake Form",  IconName: "AddDocument", ScreenName: "scrIntakeWizard", BadgeCount: 0, Show: true },
+                  { Key: "requests",    Label: "My Requests",  IconName: "Tray",        ScreenName: "scrMyRequests",   BadgeCount: 0, Show: true },
+                  { Key: "queue",       Label: "PMO Queue",    IconName: "Search",      ScreenName: "scrPMOQueue",     BadgeCount: 0, Show: varIsPMO Or varIsAdmin },
+                  { Key: "itestimate",  Label: "IT Estimate",  IconName: "Notebook",    ScreenName: "scrITEstimate",   BadgeCount: 0, Show: varIsITEstimateManager Or varIsAdmin }
+              )
+            OnNavItemSelect: |-
+              =Switch(SelectedKey,
+                  "home",     Navigate(scrHome,        ScreenTransition.Fade),
+                  "requests", Navigate(scrMyRequests,  ScreenTransition.Fade),
+                  "queue",    Navigate(scrPMOQueue,    ScreenTransition.Fade),
+                  "requestform", Navigate(scrIntakeWizard, ScreenTransition.Fade)
+              )
+            Width: =1366
+            Y: =56
+      - cmpPrimaryNav_1:
+          Control: CanvasComponent
+          ComponentName: cmpHeader
+          Properties:
+            EnvironmentLabel: ="Text"
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =56
+            OnBackSelect: =
+            ShowBackButton: =true
+            Title: ="Intake Review"
+            Width: =1366
