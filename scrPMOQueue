@@ -1,0 +1,528 @@
+Screens:
+  scrPMOQueue:
+    Properties:
+      Fill: =gblTheme.ColorSurfaceAlt
+      OnVisible: |-
+        =If(
+            varAppReady && Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
+
+            // unauthorized path
+            Set(varRedirectToHome, true),
+
+            // authorized path
+            Set(varRedirectToHome, false);
+            Concurrent(
+                ClearCollect(
+                    colPMOFinalizationQueue,
+                    SortByColumns(
+                        Filter(
+                            'Project Intake Requests',
+                            'Project Intake Status' = nod_pr_status_choice.Approved
+                            And (
+                                (RequiresJira = true And JiraSynced = false)
+                                Or (RequiresPrism = true And PrismSynced = false)
+                            )
+                        ),
+                        "modifiedon",
+                        SortOrder.Descending
+                    )
+                ),
+                Set(varPMOSearch,         ""),
+                Set(varQueueSortDesc,     true),
+                Set(varSelectedPMORecord, Blank())
+            );
+            If(
+                Not(IsEmpty(colPMOFinalizationQueue)),
+                Set(varSelectedPMORecord, First(colPMOFinalizationQueue)),
+                Set(varSelectedPMORecord, Blank())
+            )
+        )
+    Children:
+      - cntMain:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            Height: =664
+            LayoutDirection: =LayoutDirection.Horizontal
+            Width: =Parent.Width
+            Y: =104
+          Children:
+            - conList:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  Width: =420
+                Children:
+                  - txtSearch:
+                      Control: TextInput@0.0.54
+                      Properties:
+                        OnChange: =Set(varPMOSearch, Self.Value)
+                        Placeholder: ="Search"
+                        Width: =Parent.Width
+                  - galQueue:
+                      Control: Gallery@2.15.0
+                      Variant: Vertical
+                      Properties:
+                        Items: |-
+                          =SortByColumns(
+                              Filter(
+                                  colPMOFinalizationQueue,
+                                  IsBlank(varPMOSearch)
+                                  Or StartsWith('Request Title', varPMOSearch)
+                              ),
+                              "modifiedon",
+                              If(varQueueSortDesc, SortOrder.Descending, SortOrder.Ascending)
+                          )
+                        OnSelect: =Set(varSelectedPMORecord, ThisItem)
+                        TemplateSize: =90
+                        Width: =Parent.Width
+                      Children:
+                        - lblTitle_1:
+                            Control: Label@2.5.1
+                            Properties:
+                              Color: =gblTheme.ColorTextPrimary
+                              Height: =35
+                              Text: =ThisItem.'Request Title'
+                              Width: =416
+                              X: =8
+                  - Text3:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        Text: =
+            - conDetail_1:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                Children:
+                  - lblDetail:
+                      Control: Label@2.5.1
+                      Properties:
+                        Text: |-
+                          =If(
+                              IsBlank(varSelectedPMORecord),
+                              "No selection",
+                              varSelectedPMORecord.'Request Title'
+                          )
+                        Width: =300
+                  - conPMOTriageReview:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        Fill: =gblTheme.ColorSurfaceAlt
+                        Height: =
+                        LayoutAlignItems: =LayoutAlignItems.Stretch
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutGap: =gblTheme.Space3
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        PaddingBottom: =gblTheme.Space4
+                        PaddingLeft: =gblTheme.Space4
+                        PaddingRight: =gblTheme.Space4
+                        PaddingTop: =gblTheme.Space4
+                        Visible: =varIsPMO And Not(IsBlank(varSelectedPMORecord)) And varSelectedPMORecord.'Project Classification' = "PMO Triage"
+                      Children:
+                        - conTriageHeader:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              Height: =
+                              LayoutAlignItems: =LayoutAlignItems.Stretch
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              LayoutGap: =gblTheme.Space3
+                              LayoutJustifyContent: =LayoutJustifyContent.Center
+                              LayoutMaxHeight: =lblTriageHeading.Height+ lblClassPill.Height
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              PaddingBottom: =8
+                              PaddingLeft: =8
+                              PaddingRight: =8
+                              PaddingTop: =8
+                            Children:
+                              - lblTriageHeading:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Color: =gblTheme.ColorTextPrimary
+                                    FillPortions: =1
+                                    FontWeight: =FontWeight.Semibold
+                                    Height: =
+                                    LayoutMaxHeight: =35
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeH2
+                                    Text: ="PMO Triage Review"
+                              - lblClassPill:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Align: =Align.Center
+                                    Color: =gblTheme.ColorWarning
+                                    Fill: =gblTheme.ColorWarningBg
+                                    FillPortions: =1
+                                    Height: =
+                                    LayoutMaxHeight: =35
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    PaddingLeft: =gblTheme.Space2
+                                    PaddingRight: =gblTheme.Space2
+                                    RadiusBottomLeft: =gblTheme.RadiusPill
+                                    RadiusBottomRight: =gblTheme.RadiusPill
+                                    RadiusTopLeft: =gblTheme.RadiusPill
+                                    RadiusTopRight: =gblTheme.RadiusPill
+                                    Text: ="PMO Triage"
+                        - conTriageFields:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              AlignInContainer: =AlignInContainer.SetByContainer
+                              BorderColor: =gblTheme.ColorBorder
+                              BorderThickness: =1
+                              Fill: =gblTheme.ColorSurface
+                              LayoutAlignItems: =LayoutAlignItems.Stretch
+                              LayoutDirection: =LayoutDirection.Vertical
+                              LayoutGap: =gblTheme.Space3
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              PaddingBottom: =gblTheme.Space4
+                              PaddingLeft: =gblTheme.Space4
+                              PaddingRight: =gblTheme.Space4
+                              PaddingTop: =gblTheme.Space4
+                              RadiusBottomLeft: =gblTheme.RadiusMd
+                              RadiusBottomRight: =gblTheme.RadiusMd
+                              RadiusTopLeft: =gblTheme.RadiusMd
+                              RadiusTopRight: =gblTheme.RadiusMd
+                            Children:
+                              - lblTriageTitle:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Color: =gblTheme.ColorTextPrimary
+                                    FillPortions: =1
+                                    FontWeight: =FontWeight.Semibold
+                                    LayoutMaxHeight: =50
+                                    LayoutMinHeight: =40
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeH3
+                                    Text: =varSelectedPMORecord.'Request Title'
+                                    VerticalAlign: =VerticalAlign.Top
+                              - lblTriageSponsor:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    AutoHeight: =true
+                                    Color: =gblTheme.ColorTextSecondary
+                                    FillPortions: =1
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeBody
+                                    Text: |-
+                                      ="Sponsor: " & Coalesce(varSelectedPMORecord.'Sponsor Name', "—")
+                              - lblTriageCategory:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    AutoHeight: =true
+                                    Color: =gblTheme.ColorTextSecondary
+                                    FillPortions: =1
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeBody
+                                    Text: |-
+                                      ="Category: " & Coalesce(Text(varSelectedPMORecord.'Project Category'), "—")
+                              - lblTriageSubmitted:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    AutoHeight: =true
+                                    Color: =gblTheme.ColorTextMuted
+                                    FillPortions: =1
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeSmall
+                                    Text: |-
+                                      ="Submitted: " & Text(varSelectedPMORecord.'Created On', DateTimeFormat.ShortDateTime)
+                              - lblTriageProblem:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    AutoHeight: =true
+                                    Color: =gblTheme.ColorTextPrimary
+                                    FillPortions: =1
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeBody
+                                    Text: =Coalesce(varSelectedPMORecord.'What problem are you trying to solve?', "No description provided.")
+                        - conTriageNotes:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutDirection: =LayoutDirection.Vertical
+                              LayoutGap: =gblTheme.Space2
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              PaddingBottom: =8
+                              PaddingLeft: =8
+                              PaddingRight: =8
+                              PaddingTop: =8
+                            Children:
+                              - lblTriageNotesLabel:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Color: =gblTheme.ColorTextSecondary
+                                    FontWeight: =FontWeight.Semibold
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeSmall
+                                    Text: ="PMO Notes (optional)"
+                              - txtTriageNotes:
+                                  Control: ModernTextInput@1.1.0
+                                  Properties:
+                                    Height: =100
+                                    LayoutMinHeight: =100
+                                    LayoutMinWidth: =16
+                                    OnChange: =Set(varTriageNotesText, Self.Text)
+                                    Placeholder: ="Add internal PMO notes before submitting..."
+                                    Type: =TextInputType.Multiline
+                                    Width: =Parent.Width
+                        - conTriageActions:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              Height: =48
+                              LayoutAlignItems: =LayoutAlignItems.End
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              LayoutGap: =gblTheme.Space3
+                              LayoutMaxHeight: =50
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              PaddingBottom: =8
+                              PaddingLeft: =8
+                              PaddingRight: =8
+                              PaddingTop: =8
+                            Children:
+                              - lblClassificationCurrent:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    Text: =varProjectRec.'Auto-Classified Outcome'
+                              - btnReturnForRework:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    BasePaletteColor: =gblTheme.ColorWarning
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    OnSelect: "=// btnReturnForRework.OnSelect — comma version\r\nIfError(\r\n    With(\r\n        {\r\n            _patched: Patch(\r\n                'Project Intake Requests',\r\n                varSelectedPMORecord,\r\n                {\r\n                    'Project Intake Status': nod_pr_status_choice.Draft,\r\n                    'PMO Notes': varTriageNotesText\r\n                }\r\n            )\r\n        },\r\n        \r\n        RemoveIf(colPMOFinalizationQueue, 'IntakeID Request' = _patched.'IntakeID Request');\r\n        Set(varSelectedPMORecord, Blank());\r\n        Set(varTriageNotesText, \"\");\r\n        Reset(txtTriageNotes);\r\n        Notify(\"Request returned to submitter.\", NotificationType.Warning)\r\n    ),\r\n    Notify(\"Return failed: \" & FirstError.Message, NotificationType.Error)\r\n)"
+                                    Text: ="Return for Rework"
+                                    Width: =150
+                              - ddReclass:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    AccessibleLabel: ="Change classification for this request"
+                                    ItemDisplayText: =ThisItem.Value
+                                    Items: =["Standard Project", "PMO Triage", "Just Do It"]
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    OnChange: =Set(varPMOReclassTo, Self.Selected.Value)
+                              - txtReclassReason:
+                                  Control: ModernTextInput@1.1.0
+                                  Properties:
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    OnChange: =Set(varPMOReclassReason, Self.Text)
+                                    Placeholder: |-
+                                      ="Reason for reclassification (required)
+                                      "
+                                    Type: =TextInputType.Multiline
+                                    Visible: =Not(IsBlank(varPMOReclassTo)) And varPMOReclassTo <> Text(varSelectedPMORecord.'Project Classification')
+                              - btnSubmitToIT:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    AccessibleLabel: ="Submit this PMO Triage request to IT for estimation"
+                                    BasePaletteColor: =gblTheme.ColorBrandPrimary
+                                    DisplayMode: |-
+                                      =If(
+                                                  varIsPMO
+                                                  And Not(IsBlank(varSelectedPMORecord))
+                                                  And varSelectedPMORecord.'Project Intake Status' = nod_pr_status_choice.'PMO Review',
+                                                  DisplayMode.Edit,
+                                                  DisplayMode.Disabled
+                                              )
+                                    FillPortions: =1
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    OnSelect: "=IfError(\r\n    With(\r\n        {\r\n            _patched: Patch(\r\n                'Project Intake Requests',\r\n                varSelectedPMORecord,\r\n                {\r\n                    'Project Intake Status': nod_pr_status_choice.'IT Estimate','PMO Notes':             varTriageNotesText \r\n                }\r\n            )\r\n        },\r\n        // Remove from local PMO queue using the patched record's PK\r\n        RemoveIf(\r\n            colPMOFinalizationQueue,\r\n            'IntakeID Request' = _patched.'IntakeID Request'\r\n        );\r\n        // In-session audit entry\r\n        Collect(\r\n            colEstimateAudit,\r\n            {\r\n                EventType:   \"Routed to IT Estimate\",\r\n                ChangedBy:   varAppUser.Name,\r\n                ChangedAt:   Now(),\r\n                Notes:       \"Routed from PMO Queue by \" & varAppUser.Name,\r\n                StatusColor: 'BadgeCanvas.ThemeColor'.Informative\r\n            }\r\n        );\r\n       \r\n        // Refresh selected record from patch return value\r\n        Set(varSelectedPMORecord, Blank());\r\n        Notify(\"Routed to IT Estimate queue.\", NotificationType.Success)\r\n    ),\r\n    Notify(\"Routing failed: \" & FirstError.Message, NotificationType.Error)\r\n)"
+                                    Text: ="Submit to IT for Estimate"
+                              - btnApproveRoute:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    FontWeight: =FontWeight.Lighter
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    OnSelect: "=// btnRouteRequest.OnSelect — comma version\r\n\r\n// Guard: if reclassifying, a reason is mandatory\r\nIf(\r\n    Not(IsBlank(varPMOReclassTo))\r\n    And varPMOReclassTo <> Text(varSelectedPMORecord.'Auto-Classified Outcome')\r\n    And Len(Trim(varPMOReclassReason)) = 0,\r\n\r\n    Notify(\"Please provide a reason for reclassification.\", NotificationType.Error),\r\n\r\n    // Proceed\r\n    With(\r\n        {\r\n            // Resolve classification — use dropdown selection if changed, otherwise keep existing\r\n            _newClass: If(\r\n                IsBlank(varPMOReclassTo)\r\n                    Or varPMOReclassTo = Text(varSelectedPMORecord.'Auto-Classified Outcome'),\r\n                varSelectedPMORecord.'Auto-Classified Outcome',\r\n                Switch(varPMOReclassTo,\r\n                    \"Just Do It\",                 'Auto-Classified Outcome (Project Intake Requests)'.'Just Do It',\r\n                    \"PMO Triage\",                'Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage',\r\n                    \"Standard Project\",           'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project',\r\n                    varSelectedPMORecord.'Auto-Classified Outcome'\r\n                )\r\n            ),\r\n            // Resolve next status based on final classification\r\n            _newStatus: Switch(varPMOReclassTo,\r\n                \"Just Do It\",  nod_pr_status_choice.'IT Estimate',\r\n                \"PMO Triage\",  nod_pr_status_choice.'IT Estimate',\r\n                // Steering Committee and Standard go to PMO Review for approval routing\r\n                nod_pr_status_choice.'PMO Review'\r\n            ),\r\n            _wasReclassified: Not(IsBlank(varPMOReclassTo))\r\n                And varPMOReclassTo <> Text(varSelectedPMORecord.'Auto-Classified Outcome'),\r\n            _prevClass: Text(varSelectedPMORecord.'Auto-Classified Outcome')\r\n        },\r\n\r\n        IfError(\r\n            With(\r\n                {\r\n                    _patched: Patch(\r\n                        'Project Intake Requests',\r\n                        varSelectedPMORecord,\r\n                        {\r\n                            'Project Intake Status':  _newStatus,\r\n                            'Auto-Classified Outcome': _newClass,\r\n                            'PMO Notes':              varTriageNotesText\r\n                        }\r\n                    )\r\n                },\r\n\r\n                // Audit row — always write on route\r\n            \r\n                // Remove from local collection\r\n                RemoveIf(colPMOFinalizationQueue, 'IntakeID Request' = _patched.'IntakeID Request');\r\n\r\n                // Clear state\r\n                Set(varSelectedPMORecord, Blank());\r\n                Set(varPMOReclassTo,      \"\");\r\n                Set(varPMOReclassReason,  \"\");\r\n                Set(varTriageNotesText,   \"\");\r\n                Reset(txtTriageNotes);\r\n                Reset(ddReclass);\r\n                Reset(txtReclassReason);\r\n\r\n                Notify(\r\n                    If(_wasReclassified, \"Request reclassified and routed.\", \"Request routed.\"),\r\n                    NotificationType.Success\r\n                )\r\n            ),\r\n            Notify(\"Route failed: \" & FirstError.Message, NotificationType.Error)\r\n        )\r\n    )\r\n)"
+                                    Text: ="Approve & Route"
+                  - conJiraPrism:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        Height: =
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                        LayoutMaxHeight: =btnJira.Height
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        PaddingBottom: =8
+                        PaddingLeft: =8
+                        PaddingRight: =8
+                        PaddingTop: =8
+                        Visible: =varSelectedPMORecord.'Project Classification' <> "PMO Triage"
+                      Children:
+                        - btnJira:
+                            Control: Button@0.0.45
+                            Properties:
+                              AccessibleLabel: ="Mark Jira synced for selected request"
+                              DisplayMode: |-
+                                =If(
+                                    (varIsITEstimateManager Or varIsAdmin)
+                                    And Not(IsBlank(varSelectedPMORecord))
+                                    And varSelectedPMORecord.RequiresJira = true
+                                    And varSelectedPMORecord.JiraSynced = false,
+                                    DisplayMode.Edit,
+                                    DisplayMode.Disabled
+                                )
+                              OnSelect: |-
+                                =IfError(
+                                    With(
+                                        {
+                                            _patched: Patch(
+                                                'Project Intake Requests',
+                                                varSelectedPMORecord,
+                                                {JiraSynced: true}
+                                            )
+                                        },
+                                        UpdateIf(
+                                            colPMOFinalizationQueue,
+                                            ThisRecord.'Project Intake Request' = _patched.'Project Intake Request',
+                                            {JiraSynced: true}
+                                        );
+                                        If(
+                                            (varSelectedPMORecord.RequiresPrism = false Or varSelectedPMORecord.PrismSynced = true),
+                                            Remove(
+                                                colPMOFinalizationQueue,
+                                                LookUp(
+                                                    colPMOFinalizationQueue,
+                                                    'Project Intake Request' = _patched.'Project Intake Request'
+                                                )
+                                            )
+                                        );
+                                        If(
+                                            Not(IsEmpty(colPMOFinalizationQueue)),
+                                            Set(varSelectedPMORecord, First(colPMOFinalizationQueue)),
+                                            Set(varSelectedPMORecord, Blank())
+                                        );
+                                        Notify("Jira marked complete.", NotificationType.Success)
+                                    ),
+                                    Notify("Save failed. Please try again.", NotificationType.Error)
+                                )
+                              Text: ="Mark Jira Complete"
+                              Width: =200
+                        - btnPrism:
+                            Control: Button@0.0.45
+                            Properties:
+                              AccessibleLabel: ="Mark Prism synced for selected request"
+                              DisplayMode: |-
+                                =If(
+                                    (varIsPMO Or varIsAdmin)
+                                    And Not(IsBlank(varSelectedPMORecord))
+                                    And varSelectedPMORecord.RequiresPrism = true
+                                    And varSelectedPMORecord.PrismSynced = false,
+                                    DisplayMode.Edit,
+                                    DisplayMode.Disabled
+                                )
+                              OnSelect: |-
+                                =IfError(
+                                    With(
+                                        {
+                                            _patched: Patch(
+                                                'Project Intake Requests',
+                                                varSelectedPMORecord,
+                                                {PrismSynced: true}
+                                            )
+                                        },
+                                        UpdateIf(
+                                            colPMOFinalizationQueue,
+                                            ThisRecord.'Project Intake Request' = _patched.'Project Intake Request',
+                                            {PrismSynced: true}
+                                        );
+                                        If(
+                                            (varSelectedPMORecord.RequiresJira = false Or varSelectedPMORecord.JiraSynced = true),
+                                            Remove(
+                                                colPMOFinalizationQueue,
+                                                LookUp(
+                                                    colPMOFinalizationQueue,
+                                                    'Project Intake Request' = _patched.'Project Intake Request'
+                                                )
+                                            )
+                                        );
+                                        If(
+                                            Not(IsEmpty(colPMOFinalizationQueue)),
+                                            Set(varSelectedPMORecord, First(colPMOFinalizationQueue)),
+                                            Set(varSelectedPMORecord, Blank())
+                                        );
+                                        Notify("Prism marked complete.", NotificationType.Success)
+                                    ),
+                                    Notify("Save failed. Please try again.", NotificationType.Error)
+                                )
+                              Text: ="Mark Prism Complete"
+                              Width: =200
+      - cmpHeader_3:
+          Control: CanvasComponent
+          ComponentName: cmpHeader
+          Properties:
+            EnvironmentLabel: ="Text"
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =56
+            OnBackSelect: =
+            ShowBackButton: =true
+            Title: ="PMO Queue"
+            Width: =1366
+      - cmpPrimaryNav_5:
+          Control: CanvasComponent
+          ComponentName: cmpPrimaryNav
+          Properties:
+            CurrentScreen: ="Text"
+            Fill: =RGBA(1, 81, 52, 1)
+            Height: =48
+            NavItems: |-
+              =Table(
+                  { Key: "home",        Label: "Home",        IconName: "Home",        ScreenName: "scrHome",         BadgeCount: 0, Show: true },
+                  { Key: "requestform", Label: "Intake Form",  IconName: "AddDocument", ScreenName: "scrIntakeWizard", BadgeCount: 0, Show: true },
+                  { Key: "requests",    Label: "My Requests",  IconName: "Tray",        ScreenName: "scrMyRequests",   BadgeCount: 0, Show: true },
+                  { Key: "queue",       Label: "PMO Queue",    IconName: "Search",      ScreenName: "scrPMOQueue",     BadgeCount: 0, Show: varIsPMO Or varIsAdmin },
+                  { Key: "itestimate",  Label: "IT Estimate",  IconName: "Notebook",    ScreenName: "scrITEstimate",   BadgeCount: 0, Show: varIsITEstimateManager Or varIsAdmin }
+              )
+            OnNavItemSelect: |-
+              =Switch(SelectedKey,
+                  "home",     Navigate(scrHome,        ScreenTransition.Fade),
+                  "requests", Navigate(scrMyRequests,  ScreenTransition.Fade),
+                  "queue",    Navigate(scrPMOQueue,    ScreenTransition.Fade),
+                  "itestimate", Navigate(scrITEstimate, ScreenTransition.Fade)
+              )
+            Width: =1366
+            Y: =56
+      - tmrRedirectGuard:
+          Control: Timer@2.1.0
+          Properties:
+            Duration: =1
+            OnTimerEnd: |-
+              =If(
+                  varRedirectToHome,
+                  Notify("You do not have access to this screen.", NotificationType.Error);
+                  Navigate(scrHome, ScreenTransition.None)
+              )
+            Start: =varRedirectToHome
+            Visible: =false
+            X: =60
+            Y: =60
