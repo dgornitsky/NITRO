@@ -1,0 +1,357 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// App.OnStart — NITRO Project Request Portal
+// Last reviewed: 2026-06-01
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── 1. COLLECTION TYPE-INITIALIZATION ──────────────────────────────────────
+// Seed with typed rows then clear — gives Power Apps the schema without data.
+Set(varAppLoadDate, Today());
+
+ClearCollect(colReviewSummary,  { Label: "", Value: "" });
+Clear(colReviewSummary);
+
+ClearCollect(colReviewSignals,  { Label: "", Value: "" });
+Clear(colReviewSignals);
+
+ClearCollect(colReviewSystems,  { Name: "", Checked: false });
+Clear(colReviewSystems);
+
+ClearCollect(colEstimateAnswers,
+    Filter('Intake Question Answers', 'Answer Text' = "~~init~~")
+);
+Clear(colEstimateAnswers);
+
+ClearCollect(colDynamicAnswers,
+    {
+        QuestionId:    GUID("00000000-0000-0000-0000-000000000000"),
+        QuestionLabel: "",
+        AnswerText:    "",
+        AnswerBool:    false,
+        AnswerDate:    Blank()
+    }
+);
+Clear(colDynamicAnswers);
+ClearCollect(
+    colQuestionOptions,
+    Filter(
+        'Intake Question Options',
+        'Is Active' = true
+    )
+);
+
+ClearCollect(colDynamicMultiAnswers, { QuestionId: GUID(), OptionValue: "" });
+Clear(colDynamicMultiAnswers);
+
+ClearCollect(colAdminCategoryQuestions,
+    Filter('Intake Questions', 'Is Active' = true && 1 = 0)
+);
+
+ClearCollect(colEstimateHourBuckets,
+    { Value: "<10",    Label: "< 10 hours"   },
+    { Value: "11-20",  Label: "11–20 hours"  },
+    { Value: "21-50",  Label: "21–50 hours"  },
+    { Value: "51-100", Label: "51–100 hours" },
+    { Value: "101+",   Label: "101+ hours"   }
+);
+
+// ─── 2. DESIGN TOKENS ───────────────────────────────────────────────────────
+Set(gblTheme, {
+    // Brand & surface
+    ColorBrandPrimary:      RGBA(17, 52, 93, 1),
+    ColorBrandPrimaryHover: RGBA(12, 40, 73, 1),
+    ColorBrandAccent:       RGBA(88, 161, 72, 1),
+    ColorSurface:           RGBA(255, 255, 255, 1),
+    ColorSurfaceAlt:        RGBA(247, 249, 252, 1),
+    ColorSurfaceMuted:      RGBA(237, 241, 247, 1),
+    ColorBorder:            RGBA(214, 220, 229, 1),
+    ColorBorderStrong:      RGBA(160, 170, 184, 1),
+    ColorOverlay:           RGBA(20, 24, 31, 0.45),
+
+    // Text
+    ColorTextPrimary:   RGBA(20, 24, 31, 1),
+    ColorTextSecondary: RGBA(92, 102, 117, 1),
+    ColorTextMuted:     RGBA(140, 148, 160, 1),
+    ColorTextInverse:   RGBA(255, 255, 255, 1),
+    ColorTextLink:      RGBA(21, 101, 192, 1),
+
+    // Semantic
+    ColorSuccess:   RGBA(16, 124, 16, 1),
+    ColorSuccessBg: RGBA(232, 245, 233, 1),
+    ColorWarning:   RGBA(194, 120, 3, 1),
+    ColorWarningBg: RGBA(255, 244, 229, 1),
+    ColorDanger:    RGBA(196, 49, 75, 1),
+    ColorDangerBg:  RGBA(253, 236, 234, 1),
+    ColorInfo:      RGBA(0, 120, 212, 1),
+    ColorInfoBg:    RGBA(232, 241, 251, 1),
+
+    // Classification aliases
+    ColorClassSteering: RGBA(196, 49, 75, 1),
+    ColorClassPMO:      RGBA(194, 120, 3, 1),
+    ColorClassJDI:      RGBA(16, 124, 16, 1),
+    ColorClassRevenue:  RGBA(0, 120, 212, 1),
+
+    // Typography (modern controls use pixels)
+    FontFamily:      Font.'Open Sans',
+    FontSizeDisplay: 28,
+    FontSizeH1:      22,
+    FontSizeH2:      18,
+    FontSizeH3:      16,
+    FontSizeBody:    14,
+    FontSizeSmall:   13,
+    FontSizeCaption: 12,
+
+    // Spacing (8pt grid)
+    Space1: 4,  Space2: 8,  Space3: 12, Space4: 16,
+    Space5: 24, Space6: 32, Space7: 48, Space8: 64,
+
+    // Radii
+    RadiusSm: 4, RadiusMd: 8, RadiusLg: 12, RadiusPill: 999
+});
+
+// ─── 3. BREAKPOINT ──────────────────────────────────────────────────────────
+Set(gblBreakpoint,
+    Switch(true,
+        App.Width <= 768,  "sm",
+        App.Width <= 1024, "md",
+        "lg"
+    )
+);
+
+// ─── 4. LEGACY COLOR SHIMS (remove after full token migration) ───────────────
+Set(gblColorGreen, gblTheme.ColorBrandAccent);
+Set(gblColorRed,   gblTheme.ColorDanger);
+Set(gblColorMuted, gblTheme.ColorTextMuted);
+Set(gblColorText,  gblTheme.ColorTextPrimary);
+Set(gblColorWhite, gblTheme.ColorSurface);
+
+// ─── 5. IDENTITY (set once) ──────────────────────────────────────────────────
+Set(varEntraObjectId, Lower(Trim(Coalesce(User().EntraObjectId, ""))));
+Set(varUPN,           Lower(User().Email));
+Set(varDisplayName,   Coalesce(User().FullName, User().Email));
+
+// ─── 6. LOAD APP USER RECORD ────────────────────────────────────────────────
+Set(
+    varAppUser,
+    LookUp(
+        'ITPM_Application Users',
+        EntraObjectId = varEntraObjectId
+        And IsActive = true
+    )
+);
+
+// Backfill null booleans on existing rows that predate column creation
+If(
+    Not(IsBlank(varAppUser)),
+    If(
+        IsBlank(varAppUser.IsAdmin) Or IsBlank(varAppUser.IsPMO)
+        Or IsBlank(varAppUser.IsITEstimateManager) Or IsBlank(varAppUser.IsApprover),
+        Set(
+            varAppUser,
+            Patch(
+                'ITPM_Application Users',
+                varAppUser,
+                {
+                    IsAdmin:             Coalesce(varAppUser.IsAdmin,             false),
+                    IsPMO:               Coalesce(varAppUser.IsPMO,               false),
+                    IsITEstimateManager: Coalesce(varAppUser.IsITEstimateManager, false),
+                    IsApprover:          Coalesce(varAppUser.IsApprover,          false)
+                }
+            )
+        )
+    )
+);
+// ─── 7. AUTO-PROVISION — only if no record found ─────────────────────────────
+If(
+    IsBlank(varAppUser),
+    IfError(
+        Set(
+            varAppUser,
+            Patch(
+                'ITPM_Application Users',
+                Defaults('ITPM_Application Users'),
+                {
+                    EntraObjectId:                 varEntraObjectId,
+                    Name:                          varDisplayName,
+                    'Email Address (emailaddress)': varUPN,
+                    IsActive:                      true,
+                    IsPMO:                         false,
+                    IsApprover:                    false,
+                    IsAdmin:                       false,
+                    IsITEstimateManager:           false
+                }
+            )
+        );
+        Set(varCurrentSystemUserId, varAppUser.'Email Address (emailaddress)'),
+        // Patch failed — attempt recovery LookUp
+        Set(
+            varAppUser,
+            LookUp(
+                'ITPM_Application Users',
+                EntraObjectId = varEntraObjectId
+                And IsActive = true
+            )
+        );
+        Set(varCurrentSystemUserId, varAppUser.'Email Address (emailaddress)');
+        // If still blank after recovery, flag the app as degraded
+        If(
+            IsBlank(varAppUser),
+            Set(varAppReady, false);
+            Notify(
+                "Unable to load your user profile. Please refresh or contact your administrator.",
+                NotificationType.Error
+            )
+        )
+    )
+);
+// ─── 8. ROLE FLAGS ───────────────────────────────────────────────────────────
+Set(varIsAdmin,             If(varAppUser.IsAdmin             = true, true, false));
+Set(varIsPMO,               If(varAppUser.IsPMO               = true, true, false));
+Set(varIsITEstimateManager, If(varAppUser.IsITEstimateManager = true, true, false));
+Set(varIsApprover,          If(varAppUser.IsApprover          = true, true, false));
+Set(varCanEdit,             varIsAdmin Or varIsPMO);
+Set(varAppReady,            true);
+
+// ─── 9. UI STATE VARIABLES ───────────────────────────────────────────────────
+Set(varReviewVisible,       false);
+Set(varMyRequestsTab,       "");
+Set(varPMOSelectedId, "");
+Set(varPMOReclassTo,        "");
+Set(varRedirectToHome,      false);
+Set(varReviewTabReset,      false);
+Set(varIntakeFormVisible,   true);
+Set(varHomeDataStale,       true);      // FIX: was never initialized — force first load
+Set(varMRNeedsRefresh,      false);
+Set(varShowContactPanel,    false);
+Set(varNotifyTimer,         false);
+Set(varNotifyMessage,       "");
+Set(varNotifyAction,        "");
+Set(varCountdown,           0);
+Set(varShowNotesPanel,      false);
+Set(varEstimateNotesText,   "");
+Set(varShowRequestPicker,   true);
+Set(varShowIntakeGuide,     false);
+Set(varGuideTab,            "");
+Set(varSelectedRequestId,   "");
+Set(varQueueCollapsed,      false);
+Set(varIsSaving, false);
+
+// ─── 10. INTAKE / WIZARD STATE ───────────────────────────────────────────────
+Set(varWizardStep,           0);
+Set(varGateStep,             0);
+Set(varIntakeTotalSteps,     3);
+Set(varIntakeMode,           "Create");
+Set(varIntakeProcess,        nod_pr_status_choice.Draft);
+Set(varClassificationOutcome,"");
+Set(varHasSteeringTrigger,   false);
+Set(varRequiresPMOTriage,    false);
+Set(varRevenuePriority,      false);
+Set(varJDI,                  false);
+Set(varNewProjectName,       "");
+Set(varCategoryStepValid,    false);
+Set(varProjectStatus,        "");
+Set(varCategoryText,         "");
+Set(varWizardMode, "Create");
+
+// Gate answer variables — must match scrIntakeWizard exactly
+Set(varGateAnswer_Q0, "");
+Set(varGateAnswer_Q1, "");
+Set(varGateAnswer_Q2, "");
+Set(varGateAnswer_Q3, "");
+Set(varGateAnswer_Q4, "");
+
+// System checkboxes
+Set(varSystems_Perfection,   false);
+Set(varSystems_Database,     false);
+Set(varSystems_WMS,          false);
+Set(varSystems_Masterpack,   false);
+Set(varSystems_StepStibo,    false);
+Set(varSystems_Amazon,       false);
+Set(varSystems_EDI,          false);
+Set(varSystems_Magento,      false);
+Set(varSystems_Hardware,     false);
+Set(varSystems_Other,        false);
+
+// ─── 11. INTAKE RECORD DEFAULTS ──────────────────────────────────────────────
+Set(varProjectRec, Blank());
+Set(varHomeRecentRequests,   Blank());
+Set(varSelectedRequest,      Blank());
+
+// ─── 12. IT ESTIMATE SCREEN STATE ────────────────────────────────────────────
+Set(varEstimateHours,   "");
+Set(varEstimateSystems, "");
+Set(varEffortScore,     0);
+Set(varEffortLabel,     "");
+Set(varNotesLog,        "");
+
+// ─── 13. PMO SCREEN STATE ────────────────────────────────────────────────────
+Set(varPMOActiveTab,        "Triage");
+Set(varSelectedPMORecord,   Blank());
+
+// ─── 14. APPROVAL SCREEN STATE ───────────────────────────────────────────────
+Set(varSelectedApprovalRec, "");
+
+// ─── 15. WIZARD STEP STATES (future screens) ─────────────────────────────────
+Set(varReqWizardStep,       0);
+Set(varBCWizardStep,        0);
+Set(varScheduleWizardStep,  0);
+Set(varSelectedActiveProject, "");
+Set(varSelectedProject,       "");
+Set(varMyRequestsFilter,    "All");
+
+// ─── 16. CHOICES + USER PROFILE (parallel) ────────────────────────────────────
+Concurrent(
+    Set(gblChoices, {
+        RevenueImpact:   Choices('Revenue Impact (Project Intake Requests)'),
+        BenefitCategory: Choices('Benefit Category (Project Intake Requests)'),
+        HardDeadline:    Choices('Hard Deadline? (Project Intake Requests)'),
+        CustomerGroup:   Choices('Who is the primary customer group impacted? (Project Intake Requests)'),
+        ITSystems:       Choices('IT Systems Impacted (Project Intake Requests)'),
+        ProjectCategory: Choices(nod_pr_category),
+        NewOrModified:   Choices('New or Modified? (Project Intake Requests)'),
+        APIWork:         Choices('Is there API work involved? (Project Intake Requests)'),
+        NewOrMod:        Choices('Is this a new functionality or modification? (Project Intake Requests)'),
+        NewWorkflow:     Choices('Does this introduce new business workflow steps? (Project Intake Requests)'),
+        DataModelChange: Choices('Are data model changes required? (Project Intake Requests)'),
+        ComplexCalcs:    Choices('Are there complex calculations and/or Rules? (Project Intake Requests)')
+    }),
+    Set(gblCurrentUser, User()),
+    Set(gblSessionId,   GUID())
+);
+
+// ─── 17. STATIC COLLECTIONS ───────────────────────────────────────────────────
+ClearCollect(colNavItems,
+    { Key: "home",     Label: "Home",        IconName: "Home",         ScreenName: "scrHome",       BadgeCount: 0, Show: true },
+    { Key: "requests", Label: "My Requests", IconName: "DocumentList", ScreenName: "scrMyRequests", BadgeCount: 0, Show: true },
+    { Key: "queue",    Label: "PMO Queue",   IconName: "Check",        ScreenName: "scrPMOQueue",   BadgeCount: 0, Show: varIsPMO Or varIsAdmin },
+    { Key: "estimate", Label: "IT Estimate", IconName: "Calculator",   ScreenName: "scrITEstimate", BadgeCount: 0, Show: varIsITEstimateManager Or varIsAdmin }
+);
+
+ClearCollect(colHomeTiles,
+    { Key: "MyRequests",  Label: "My Requests",  Icon: "AddLibrary",  ScreenName: "scrMyRequests",   Show: true },
+    { Key: "NewIntake",   Label: "New Intake",   Icon: "AddDocument", ScreenName: "scrIntakeWizard", Show: true },
+    { Key: "ITEstimate",  Label: "IT Estimate",  Icon: "Calculator",  ScreenName: "scrITEstimate",   Show: varIsITEstimateManager Or varIsAdmin },
+    { Key: "PMOQueue",    Label: "PMO Queue",    Icon: "DetailList",  ScreenName: "scrPMOQueue",     Show: varIsPMO Or varIsAdmin },
+    { Key: "ProjectHub",  Label: "Project Hub",  Icon: "Folder",      ScreenName: "scrProjectHub",   Show: true },
+    { Key: "MyApprovals", Label: "My Approvals", Icon: "CheckBadge",  ScreenName: "scrMyApprovals",  Show: varIsApprover Or varIsAdmin },
+    { Key: "Reporting",   Label: "Reporting",    Icon: "BarChart",    ScreenName: "scrReporting",    Show: true },
+    { Key: "Admin",       Label: "Admin",        Icon: "ToolsWrench", ScreenName: "scrAdmin",        Show: varIsPMO Or varIsAdmin }
+);
+
+Set(
+    varMyRequestsColumns,
+    Table(
+        { ColName: "nod_requesttitle",    ColDisplayName: "Request Title",  ColWidth: 280, ColIsBold: true,  ColSortable: true },
+        { ColName: "nod_projectcategory", ColDisplayName: "Category",       ColWidth: 220, ColIsBold: false, ColSortable: true },
+        { ColName: "nod_benefitscore",    ColDisplayName: "Score",          ColWidth: 80,  ColIsBold: false, ColSortable: true },
+        { ColName: "nod_status",          ColDisplayName: "Status",         ColWidth: 130, ColIsBold: false, ColSortable: true },
+        { ColName: "createdon",           ColDisplayName: "Date Submitted", ColWidth: 140, ColIsBold: false, ColSortable: true }
+    )
+);
+
+ClearCollect(colCmpDetailsListColumns,
+    { ColName: "nod_requesttitle",    ColDisplayName: "Request Title",  ColWidth: 280, ColIsBold: true,  ColSortable: true },
+    { ColName: "nod_projectcategory", ColDisplayName: "Category",       ColWidth: 220, ColIsBold: false, ColSortable: true },
+    { ColName: "nod_benefitscore",    ColDisplayName: "Score",          ColWidth: 80,  ColIsBold: false, ColSortable: true },
+    { ColName: "nod_status",          ColDisplayName: "Status",         ColWidth: 130, ColIsBold: false, ColSortable: true },
+    { ColName: "createdon",           ColDisplayName: "Date Submitted", ColWidth: 140, ColIsBold: false, ColSortable: true }
+);
