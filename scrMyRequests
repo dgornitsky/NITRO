@@ -1,0 +1,654 @@
+Screens:
+  scrMyRequests:
+    Properties:
+      Fill: =gblTheme.ColorSurfaceAlt
+      OnVisible: |-
+        =// ── Reset UI state ────────────────────────────────────────────────────────
+        Set(varMRFilter, "All");
+        Set(varMRSearch, "");
+        Set(varMRSortBy, "ModifiedDesc");
+        Set(varMRPageSize, 20);
+        Set(varMRVisible, varMRPageSize);
+
+        // ── Static collections (cheap — always rebuild) ───────────────────────────
+        ClearCollect(colMRFilters,
+            {Key: "All",          Label: "All",           Value: "All"},
+            {Key: "Draft",        Label: "Drafts",         Value: "Draft"},
+            {Key: "IT Estimate",  Label: "IT Estimate",    Value: "IT Estimate"},
+            {Key: "UnderReview",  Label: "Under Review",   Value: "Under Review"},
+            {Key: "Approved",     Label: "Approved",       Value: "Approved"},
+            {Key: "Declined",     Label: "Declined",       Value: "Declined"}
+        );
+
+        ClearCollect(colMRSortOptions,
+            {Key: "ModifiedDesc", Label: "Last modified"},
+            {Key: "CreatedDesc",  Label: "Date submitted"},
+            {Key: "StatusAsc",    Label: "Status (A–Z)"}
+        );
+
+        // ── Dataverse query — only when stale or cache is empty ───────────────────
+        If(
+            varMRNeedsRefresh Or IsEmpty(colMyRequests),
+            ClearCollect(colMyRequests,
+                SortByColumns(
+                    Filter(
+                        'Project Intake Requests',
+                        nod_SubmittedBy = varAppUser.'Email Address (emailaddress)'
+                    ),
+                    "createdon",
+                    SortOrder.Descending
+                )
+            );
+            Set(varMRNeedsRefresh, false)
+        );
+
+        // ── Counts (derived from local collection — no additional Dataverse calls) ─
+        Set(varMRTotalCount, CountRows(colMyRequests));
+
+        ClearCollect(colMRFilterCounts,
+            {Key: "All",         Count: CountRows(colMyRequests)},
+            {Key: "Draft",       Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.Draft))},
+            {Key: "IT Estimate", Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.'IT Estimate'))},
+            {Key: "UnderReview", Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.'PMO Review'))},
+            {Key: "Approved",    Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.Approved))},
+            {Key: "Declined",    Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.Rejected))}
+        );
+    Children:
+      - cmpEmptyState_2:
+          Control: CanvasComponent
+          ComponentName: cmpEmptyState
+          Properties:
+            Description: ="Start your first project request — it takes about a minute to classify."
+            Height: =504
+            IconName: ="Document"
+            OnPrimarySelect: =Navigate(scrIntakeWizard, ScreenTransition.Fade)
+            OnSecondarySelect: =
+            PrimaryActionLabel: ="Start your first request"
+            SecondaryActionLabel: =""
+            Title: ="You haven't submitted any requests yet."
+            Visible: =IsEmpty(colMyRequests)
+            Width: =1318
+            X: =galMRResults.X
+            Y: =184
+      - cmpEmptyState_3:
+          Control: CanvasComponent
+          ComponentName: cmpEmptyState
+          Properties:
+            Description: ="Try a different status or clear your search."
+            Height: =504
+            IconName: =Icon.Search
+            OnPrimarySelect: =
+            OnSecondarySelect: =Set(varMRFilter, "All"); Set(varMRSearch, ""); Reset(inpMRSearch)
+            PrimaryActionLabel: =""
+            SecondaryActionLabel: ="Clear filters"
+            Title: ="No requests match this filter."
+            Visible: =Not(IsEmpty(colMyRequests)) And CountRows(galMRResults.AllItems) = 0
+            Width: =1318
+            X: =24
+            Y: =167
+      - conMyRequestsShell:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            DropShadow: =DropShadow.None
+            Fill: =gblTheme.ColorSurfaceAlt
+            Height: =App.Height - cmpHeader_2.Height - cmpPrimaryNav_2.Height
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutDirection: =LayoutDirection.Vertical
+            LayoutGap: =gblTheme.Space4
+            PaddingBottom: =gblTheme.Space4
+            PaddingLeft: =gblTheme.Space5
+            PaddingRight: =gblTheme.Space5
+            PaddingTop: =gblTheme.Space4
+            RadiusBottomLeft: =0
+            RadiusBottomRight: =0
+            RadiusTopLeft: =0
+            RadiusTopRight: =0
+            Visible: |-
+              =true
+              //!IsEmpty(colMyRequests)
+            Width: =Parent.Width
+            Y: =cmpHeader_2.Height + cmpPrimaryNav_2.Height
+          Children:
+            - cntFilterRow:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  DropShadow: =DropShadow.None
+                  Fill: =gblTheme.ColorSurfaceAlt
+                  FillPortions: =0
+                  Height: =48
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =gblTheme.Space3
+                  LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                  LayoutMinHeight: =48
+                  LayoutMinWidth: =16
+                  LayoutOverflowX: =LayoutOverflow.Scroll
+                  PaddingBottom: =gblTheme.Space2
+                  PaddingLeft: =gblTheme.Space4
+                  PaddingRight: =gblTheme.Space4
+                  PaddingTop: =gblTheme.Space2
+                  Width: =Parent.Width
+                Children:
+                  - galFilterChips:
+                      Control: Gallery@2.15.0
+                      Variant: BrowseLayout_Horizontal_TwoTextOneImageVariant_ver5.0
+                      Properties:
+                        AlignInContainer: =AlignInContainer.Start
+                        Height: =Parent.Height - gblTheme.Space2 * 2
+                        Items: =colMRFilters
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        ShowScrollbar: =false
+                        TemplateSize: =120
+                        Width: =Parent.Width - gblTheme.Space4 * 2
+                      Children:
+                        - recChipSelected:
+                            Control: Rectangle@2.3.0
+                            Properties:
+                              BorderColor: |-
+                                =If(
+                                                      varMRFilter = ThisItem.Key,
+                                                      gblTheme.ColorBrandPrimary,
+                                                      gblTheme.ColorBorder
+                                                    )
+                              BorderThickness: =1
+                              Fill: |-
+                                =If(
+                                                      varMRFilter = ThisItem.Key,
+                                                      gblTheme.ColorBrandPrimary,
+                                                      gblTheme.ColorSurface
+                                                    )
+                              Height: =32
+                              Visible: |-
+                                =LookUp(colMRFilterCounts, Key = ThisItem.Key).Count > 0
+                                    Or ThisItem.Key = "All"
+                              Width: =120
+                        - lblChipText:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Align: =Align.Center
+                              Color: |-
+                                =If(
+                                                      varMRFilter = ThisItem.Key,
+                                                      gblTheme.ColorTextInverse,
+                                                      gblTheme.ColorTextPrimary
+                                                    )
+                              FontWeight: |-
+                                =If(
+                                                      varMRFilter = ThisItem.Key,
+                                                      FontWeight.Semibold,
+                                                      FontWeight.Normal
+                                                    )
+                              OnSelect: =Select(Parent)
+                              PaddingRight: =10
+                              Size: =gblTheme.FontSizeSmall
+                              Text: |-
+                                =ThisItem.Label
+                                                      & " ("
+                                                      & Text(LookUp(colMRFilterCounts, Key = ThisItem.Key).Count)
+                                                      & ")"
+                              Width: =120
+                        - btnChipOverlay:
+                            Control: Button@0.0.45
+                            Properties:
+                              AccessibleLabel: |-
+                                =ThisItem.Label
+                                                      & " filter, "
+                                                      & Text(LookUp(colMRFilterCounts, Key = ThisItem.Key).Count)
+                                                      & " items"
+                              Appearance: ='ButtonCanvas.Appearance'.Transparent
+                              BasePaletteColor: |-
+                                =If(
+                                                      varMRFilter = ThisItem.Key,
+                                                      gblTheme.ColorBrandPrimary,
+                                                      gblTheme.ColorSurfaceMuted
+                                                    )
+                              BorderColor: =Color.Transparent
+                              BorderThickness: =0
+                              OnSelect: |-
+                                =Set(varMRFilter, ThisItem.Key);
+                                                      Set(varMRVisible, varMRPageSize)
+                              Text: =""
+                              Width: =120
+                  - inpMRSearch:
+                      Control: ModernTextInput@1.1.0
+                      Properties:
+                        Height: =40
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnChange: =Set(varMRSearch, Self.Text)
+                        Placeholder: ="Search by title or category"
+                        Type: =TextInputType.Search
+            - cntMRSortRow:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  DropShadow: =DropShadow.None
+                  Fill: =gblTheme.ColorSurfaceAlt
+                  FillPortions: =0
+                  Height: =48
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =gblTheme.Space3
+                  LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                  LayoutMinHeight: =48
+                  LayoutMinWidth: =16
+                  PaddingBottom: =gblTheme.Space2
+                  PaddingLeft: =gblTheme.Space4
+                  PaddingRight: =gblTheme.Space4
+                  PaddingTop: =gblTheme.Space2
+                  Width: =Parent.Width
+                Children:
+                  - cntMRResultCount:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        Fill: =Color.Transparent
+                        Height: =32
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        LayoutGap: =gblTheme.Space2
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                      Children:
+                        - lblMRResultCount:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Align: =Align.Center
+                              AutoHeight: =true
+                              Color: =gblTheme.ColorTextSecondary
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =gblTheme.FontSizeSmall
+                              Text: |-
+                                =Text(
+                                    CountRows(
+                                        Filter(colMyRequests,
+                                            varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
+                                            IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
+                                        )
+                                    )
+                                ) & " requests"
+                                & If(varMRFilter <> "All",
+                                    " · filtered by " & LookUp(colMRFilters, Key = varMRFilter).Label,
+                                    ""
+                                  )
+                              Width: =Parent.Width
+                  - cntMRSortControl:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.Center
+                        Fill: =Color.Transparent
+                        FillPortions: =0
+                        Height: =32
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        LayoutGap: =gblTheme.Space2
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        PaddingBottom: =8
+                        PaddingLeft: =8
+                        PaddingRight: =8
+                        PaddingTop: =8
+                        Width: =icoSort.Width + lblSortBy.Width + ddMRSort.Width + 20
+                      Children:
+                        - icoSort:
+                            Control: Icon@0.0.7
+                            Properties:
+                              AlignInContainer: =AlignInContainer.Center
+                              Height: =16
+                              Icon: ="ArrowSort"
+                              IconColor: =gblTheme.ColorTextSecondary
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Width: =16
+                        - lblSortBy:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AlignInContainer: =AlignInContainer.Center
+                              AutoHeight: =true
+                              Color: =gblTheme.ColorTextSecondary
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =gblTheme.FontSizeSmall
+                              Text: ="Sort by:"
+                        - ddMRSort:
+                            Control: ModernCombobox@1.1.0
+                            Properties:
+                              AccessibleLabel: ="Sort requests by"
+                              AlignInContainer: =AlignInContainer.Center
+                              BasePaletteColor: =gblTheme.ColorSurface
+                              BorderColor: =gblTheme.ColorBorder
+                              BorderThickness: =1
+                              Color: =gblTheme.ColorTextSecondary
+                              DefaultSelectedItems: =Filter(colMRSortOptions, Key = varMRSortBy)
+                              Fill: =gblTheme.ColorSurface
+                              ItemDisplayText: =ThisItem.Label
+                              Items: =colMRSortOptions
+                              LayoutMinWidth: =120
+                              OnChange: |-
+                                =Set(varMRSortBy, Self.Selected.Key);
+                                                      Set(varMRVisible, varMRPageSize)
+                              RadiusBottomLeft: =gblTheme.RadiusSm
+                              RadiusBottomRight: =gblTheme.RadiusSm
+                              RadiusTopLeft: =gblTheme.RadiusSm
+                              RadiusTopRight: =gblTheme.RadiusSm
+                              Size: =gblTheme.FontSizeSmall
+                              Width: =160
+            - galMRResults:
+                Control: Gallery@2.15.0
+                Variant: BrowseLayout_Vertical_TwoTextOneImageVariant_ver5.0
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  Items: |-
+                    =FirstN(
+                                                Filter(
+                                                    Switch(
+                                                        varMRSortBy,
+                                                        "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon",  SortOrder.Descending),
+                                                        "CreatedDesc",  SortByColumns(colMyRequests, "createdon",   SortOrder.Descending),
+                                                        "StatusAsc",    SortByColumns(colMyRequests, "statuscode",  SortOrder.Ascending),
+                                                        colMyRequests
+                                                    ),
+                                                    varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
+                                                    IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
+                                                ),
+                                                varMRVisible
+                                            )
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  TemplatePadding: =gblTheme.Space3
+                  TemplateSize: =200
+                  Width: =Parent.Width
+                Children:
+                  - cntFooterRow:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        DropShadow: =DropShadow.None
+                        Height: =40
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        LayoutGap: =gblTheme.Space2
+                        LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                        PaddingBottom: =8
+                        PaddingLeft: =8
+                        PaddingRight: =8
+                        PaddingTop: =8
+                        Width: =Parent.TemplateWidth - gblTheme.Space4 * 2
+                        X: =gblTheme.Space4
+                        Y: =Parent.TemplateHeight - 40 - gblTheme.Space3
+                      Children:
+                        - btnResume:
+                            Control: Button@0.0.45
+                            Properties:
+                              Align: =Align.Left
+                              AlignInContainer: =AlignInContainer.Center
+                              Height: =40
+                              Icon: ="Edit"
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              OnSelect: |-
+                                =// ── 1. Pointer & UI identifiers ─────────────────────────────────────────
+                                                                Set(varProjectRec,        ThisItem);
+                                                                Set(varSelectedRequest,   ThisItem);
+                                                                Set(varSelectedRequestId, ThisItem.'IntakeID Request');
+
+                                                                // ── 2. Restore category state ───────────────────────────────────────────
+                                                                Set(varCategoryName,     Text(ThisItem.'Project Category'));
+                                                                Set(varSelectedCategory, ThisItem.'Project Category');
+
+                                                                // ── 3. Restore classification flags ─────────────────────────────────────
+                                                                Set(varHasSteeringTrigger, ThisItem.'Project Classification' = "Steering Committee Project");
+                                                                Set(varRequiresPMOTriage,  ThisItem.'Project Classification' = "PMO Triage");
+                                                                Set(varJDI,                ThisItem.'Project Classification' = "Just Do It");
+                                                                Set(varRevenuePriority,    ThisItem.'Revenue Priority Flag' = true);
+
+                                                                // ── 4. Ensure question/option cache is warm ──────────────────────────────
+                                                                If(
+                                                                    IsEmpty(colIntakeQuestions),
+                                                                    ClearCollect(colIntakeQuestions,
+                                                                        Filter('Intake Questions', 'Is Active' = true)
+                                                                    );
+                                                                    ClearCollect(colQuestionOptions, 'Intake Question Options')
+                                                                );
+
+                                                                // ── 5. Rebuild dynamic question list ────────────────────────────────────
+                                                                ClearCollect(colDynamicCategoryQuestions,
+                                                                    SortByColumns(
+                                                                        Filter(
+                                                                            colIntakeQuestions,
+                                                                            'Project Category' = ThisItem.'Project Category',
+                                                                            'Is Active' = true
+                                                                        ),
+                                                                        "nod_displayorder",
+                                                                        SortOrder.Ascending
+                                                                    )
+                                                                );
+
+                                                                // ── 6. Restore colDynamicAnswers from saved JSON ─────────────────────────
+                                                                Clear(colDynamicAnswers);
+                                                                Clear(colDynamicMultiAnswers);
+                                                                If(
+                                                                    !IsBlank(ThisItem.'Dynamic Answers'),
+                                                                    ForAll(
+                                                                        ParseJSON(ThisItem.'Dynamic Answers'),
+                                                                        Collect(colDynamicAnswers, {
+                                                                            QuestionId:    GUID(Text(ThisRecord.QuestionIdText)),
+                                                                            QuestionLabel: Text(ThisRecord.QuestionLabel),
+                                                                            AnswerText:    Text(ThisRecord.AnswerText),
+                                                                            AnswerBool:    Boolean(ThisRecord.AnswerBool),
+                                                                            AnswerDate:    If(
+                                                                                               IsBlank(Text(ThisRecord.AnswerDate)),
+                                                                                               Blank(),
+                                                                                               DateTimeValue(Text(ThisRecord.AnswerDate))
+                                                                                           )
+                                                                        })
+                                                                    )
+                                                                );
+
+                                                                // ── 7. Set wizard position & navigate ───────────────────────────────────
+                                                                Set(varWizardMode,        "Resume");
+                                                                Set(varWizardStep,        1);
+                                                                Set(varGateStep,          0);
+                                                                Set(varIntakeFormVisible, false);
+                                                                Set(varTriggerScrollReset, true);
+                                                                Navigate(scrIntakeWizard, ScreenTransition.Fade)
+                              Text: ="Resume draft"
+                              Visible: =ThisItem.'Project Intake Status' = nod_pr_status_choice.Draft
+                              Width: =140
+                        - btnView:
+                            Control: Button@0.0.45
+                            Properties:
+                              Appearance: ='ButtonCanvas.Appearance'.Subtle
+                              FontColor: =gblTheme.ColorTextLink
+                              Icon: ="ArrowRight"
+                              Layout: ='ButtonCanvas.Layout'.IconAfter
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              OnSelect: |-
+                                =Set(varSelectedRequest,  ThisItem);
+                                                                Set(varProjectRec,        ThisItem);
+                                                                Set(varSelectedRequestId, ThisItem.'IntakeID Request');
+                                                                Set(varReviewConfirmed,   false);
+                                                                ClearCollect(colReviewBasics,
+                                                                    { Label: "Request Title", Value: ThisItem.'Request Title' },
+                                                                    { Label: "Sponsor",       Value: ThisItem.'Sponsor Name' },
+                                                                    { Label: "Problem",       Value: ThisItem.'What problem are you trying to solve?' },
+                                                                    { Label: "Category",      Value: Text(ThisItem.'Project Category') }
+                                                                );
+                                                                ClearCollect(colReviewBenefits,
+                                                                    { Label: "Benefit Amount", Value: Text(ThisItem.'Benefit Amount', "$#,##0") },
+                                                                    { Label: "Benefit Score",  Value: Text(ThisItem.'Benefit Score') }
+                                                                );
+                                                                ClearCollect(colReviewGovernance,
+                                                                    { Label: "Classification",    Value: Text(ThisItem.'Project Classification') },
+                                                                    { Label: "Revenue Priority",  Value: If(ThisItem.'Revenue Priority Flag' = true, "Yes", "No") },
+                                                                    { Label: "IT Systems",        Value: Concat(ThisItem.'IT Systems Impacted', Value, ", ") }
+                                                                );
+                                                                Navigate(scrReview, ScreenTransition.Fade)
+                              Text: ="View details"
+                              Width: =140
+                  - txtMeta:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        AutoHeight: =true
+                        Color: =gblTheme.ColorTextSecondary
+                        Height: =20
+                        OnSelect: =Select(Parent)
+                        Size: =gblTheme.FontSizeSmall
+                        Text: =ThisItem.'Project Category' & " · " & ThisItem.'Sponsor Name'
+                        Width: =Parent.TemplateWidth - gblTheme.Space4 * 2
+                        X: =gblTheme.Space4
+                        Y: =txtGalleryTitle.Y + txtGalleryTitle.Height + gblTheme.Space1
+                  - txtGalleryTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        AutoHeight: =true
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        Height: =28
+                        Size: =gblTheme.FontSizeH3
+                        Text: =ThisItem.'Request Title'
+                        Width: =Parent.Width - gblTheme.Space4 * 2
+                        X: =gblTheme.Space4
+                        Y: =cntTopRow.Y + cntTopRow.Height + gblTheme.Space2
+                  - cntTopRow:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        DropShadow: =DropShadow.None
+                        Height: =28
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        LayoutGap: =gblTheme.Space2
+                        LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
+                        PaddingBottom: =gblTheme.Space2
+                        PaddingLeft: =gblTheme.Space2
+                        PaddingRight: =gblTheme.Space2
+                        PaddingTop: =gblTheme.Space2
+                        Width: =Parent.TemplateWidth - gblTheme.Space4 * 2
+                        X: =gblTheme.Space4
+                        Y: =gblTheme.Space4
+                      Children:
+                        - pillRevenueBadge:
+                            Control: Badge@0.0.24
+                            Properties:
+                              AccessibleLabel: ="Revenue priority request"
+                              Appearance: ='BadgeCanvas.Appearance'.Filled
+                              Content: ="Revenue priority"
+                              FontColor: =gblTheme.ColorInfo
+                              Height: =24
+                              Shape: ='BadgeCanvas.Shape'.Rounded
+                              ThemeColor: ='BadgeCanvas.ThemeColor'.Informative
+                              Visible: =ThisItem.'Revenue Priority Flag' = true
+                              Width: =120
+                              X: =
+                              Y: =
+                        - badgeStatus:
+                            Control: Badge@0.0.24
+                            Properties:
+                              Content: =ThisItem.'Project Intake Status'
+                              FillPortions: =1
+                              LayoutMaxWidth: =125
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Shape: ='BadgeCanvas.Shape'.Rounded
+                              ThemeColor: =Switch(ThisItem.'Project Intake Status', nod_pr_status_choice.Draft, 'BadgeCanvas.ThemeColor'.Subtle, nod_pr_status_choice.'IT Estimate', 'BadgeCanvas.ThemeColor'.Informative, nod_pr_status_choice.Approved, 'BadgeCanvas.ThemeColor'.Success, nod_pr_status_choice.Rejected, 'BadgeCanvas.ThemeColor'.Danger, 'BadgeCanvas.ThemeColor'.Subtle)
+                        - txtModified:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Align: =Align.Right
+                              Color: =gblTheme.ColorTextMuted
+                              FillPortions: =1
+                              LayoutMinHeight: =16
+                              LayoutMinWidth: =16
+                              Size: =gblTheme.FontSizeSmall
+                              Text: ="Modified " & Text(ThisItem.'Modified On', DateTimeFormat.ShortDate)
+                  - Separator1:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        Fill: =gblTheme.ColorSurface
+                        Height: =8
+                        OnSelect: =Select(Parent)
+                        Width: =Parent.TemplateWidth
+                        Y: =Parent.TemplateHeight - Self.Height
+                  - recLeftAccent:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Fill: |-
+                          =Switch(ThisItem.'Project Classification',
+                              "Steering Committee Project", gblTheme.ColorClassSteering,
+                              "PMO Triage",                 gblTheme.ColorClassPMO,
+                              "Just Do It",                 gblTheme.ColorClassJDI,
+                              gblTheme.ColorBorder
+                          )
+                        Height: =Parent.TemplateHeight - gblTheme.Space2 * 2
+                        OnSelect: =Select(Parent)
+                        Visible: =ThisItem.IsSelected
+                        Width: =4
+                        X: =gblTheme.Space2
+                        Y: =gblTheme.Space2
+            - btnLoadMore:
+                Control: Button@0.0.45
+                Properties:
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: ='ButtonCanvas.Appearance'.Secondary
+                  Height: =40
+                  LayoutMaxWidth: =160
+                  OnSelect: =Set(varMRVisible, varMRVisible + varMRPageSize)
+                  Visible: |-
+                    =varMRVisible < CountIf(colMyRequests,
+                        (varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter)
+                        And (IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch))
+                    )
+                  Width: =160
+                  X: =(Parent.Width - Self.Width) / 2
+                  Y: =galMRResults.Y + galMRResults.Height + gblTheme.Space3
+      - cmpPrimaryNav_2:
+          Control: CanvasComponent
+          ComponentName: cmpPrimaryNav
+          Properties:
+            CurrentScreen: ="requests"
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =48
+            NavItems: |-
+              =Table(
+                  { Key: "home",        Label: "Home",        IconName: "Home",        ScreenName: "scrHome",         BadgeCount: 0, Show: true },
+                  { Key: "requestform", Label: "Intake Form",  IconName: "AddDocument", ScreenName: "scrIntakeWizard", BadgeCount: 0, Show: true },
+                  { Key: "requests",    Label: "My Requests",  IconName: "Tray",        ScreenName: "scrMyRequests",   BadgeCount: 0, Show: true },
+                  { Key: "queue",       Label: "PMO Queue",    IconName: "Search",      ScreenName: "scrPMOQueue",     BadgeCount: 0, Show: varIsPMO Or varIsAdmin },
+                  { Key: "itestimate",  Label: "IT Estimate",  IconName: "Notebook",    ScreenName: "scrITEstimate",   BadgeCount: 0, Show: varIsITEstimateManager Or varIsAdmin }
+              )
+            OnNavItemSelect: |-
+              =Switch(SelectedKey,
+                                "home",        Navigate(scrHome,         ScreenTransition.Fade),
+                                "requestform",
+                                    Set(varWizardMode, "New");
+                                    Set(varWizardStep, 0);
+                                    Set(varProjectRec, Blank());
+                                    Navigate(scrIntakeWizard, ScreenTransition.Fade),
+                                "requests",    Navigate(scrMyRequests,   ScreenTransition.None),
+                                "queue",       Navigate(scrPMOQueue,     ScreenTransition.Fade),
+                                "itestimate",  Navigate(scrITEstimate,   ScreenTransition.Fade)
+                            )
+            Width: =Parent.Width
+            Y: =cmpHeader_2.Y + cmpHeader_2.Height
+      - cmpHeader_2:
+          Control: CanvasComponent
+          ComponentName: cmpHeader
+          Properties:
+            EnvironmentLabel: =""
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =56
+            OnBackSelect: =
+            ShowBackButton: =true
+            Title: ="My Requests"
+            Width: =Parent.Width
