@@ -17,6 +17,7 @@ Screens:
             {Key: "IT Estimate",  Label: "IT Estimate",    Value: "IT Estimate"},
             {Key: "UnderReview",  Label: "Under Review",   Value: "Under Review"},
             {Key: "Approved",     Label: "Approved",       Value: "Approved"},
+            {Key: "Submitted",    Label: "Submitted",      Value: "Submitted"},
             {Key: "Declined",     Label: "Declined",       Value: "Declined"}
         );
 
@@ -53,6 +54,19 @@ Screens:
             {Key: "Approved",    Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.Approved))},
             {Key: "Declined",    Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.Rejected))}
         );
+        ClearCollect(colMRFiltered,
+            Filter(
+                Switch(varMRSortBy,
+                    "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon", SortOrder.Descending),
+                    "CreatedDesc",  SortByColumns(colMyRequests, "createdon", SortOrder.Descending),
+                    "StatusAsc",    SortByColumns(colMyRequests, "nod_projectintakestatus", SortOrder.Ascending),
+                    colMyRequests
+                ),
+                varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
+                IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
+            )
+        );
+        Set(varMRVisible, varMRPageSize);
     Children:
       - cmpEmptyState_2:
           Control: CanvasComponent
@@ -104,9 +118,7 @@ Screens:
             RadiusBottomRight: =0
             RadiusTopLeft: =0
             RadiusTopRight: =0
-            Visible: |-
-              =true
-              //!IsEmpty(colMyRequests)
+            Visible: =!IsEmpty(colMyRequests)
             Width: =Parent.Width
             Y: =cmpHeader_2.Height + cmpPrimaryNav_2.Height
           Children:
@@ -219,7 +231,20 @@ Screens:
                         Height: =40
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
-                        OnChange: =Set(varMRSearch, Self.Text)
+                        OnChange: |-
+                          =Set(varMRSearch, Self.Text); ClearCollect(colMRFiltered,
+                              Filter(
+                                  Switch(varMRSortBy,
+                                      "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon", SortOrder.Descending),
+                                      "CreatedDesc",  SortByColumns(colMyRequests, "createdon", SortOrder.Descending),
+                                      "StatusAsc",    SortByColumns(colMyRequests, "nod_projectintakestatus", SortOrder.Ascending),
+                                      colMyRequests
+                                  ),
+                                  varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
+                                  IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
+                              )
+                          );
+                          Set(varMRVisible, varMRPageSize)
                         Placeholder: ="Search by title or category"
                         Type: =TextInputType.Search
             - cntMRSortRow:
@@ -333,7 +358,20 @@ Screens:
                               LayoutMinWidth: =120
                               OnChange: |-
                                 =Set(varMRSortBy, Self.Selected.Key);
-                                                      Set(varMRVisible, varMRPageSize)
+                                                      Set(varMRVisible, varMRPageSize);
+                                ClearCollect(colMRFiltered,
+                                    Filter(
+                                        Switch(varMRSortBy,
+                                            "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon", SortOrder.Descending),
+                                            "CreatedDesc",  SortByColumns(colMyRequests, "createdon", SortOrder.Descending),
+                                            "StatusAsc",    SortByColumns(colMyRequests, "nod_projectintakestatus", SortOrder.Ascending),
+                                            colMyRequests
+                                        ),
+                                        varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
+                                        IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
+                                    )
+                                );
+                                Set(varMRVisible, varMRPageSize)
                               RadiusBottomLeft: =gblTheme.RadiusSm
                               RadiusBottomRight: =gblTheme.RadiusSm
                               RadiusTopLeft: =gblTheme.RadiusSm
@@ -345,21 +383,7 @@ Screens:
                 Variant: BrowseLayout_Vertical_TwoTextOneImageVariant_ver5.0
                 Properties:
                   AlignInContainer: =AlignInContainer.SetByContainer
-                  Items: |-
-                    =FirstN(
-                                                Filter(
-                                                    Switch(
-                                                        varMRSortBy,
-                                                        "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon",  SortOrder.Descending),
-                                                        "CreatedDesc",  SortByColumns(colMyRequests, "createdon",   SortOrder.Descending),
-                                                        "StatusAsc",    SortByColumns(colMyRequests, "statuscode",  SortOrder.Ascending),
-                                                        colMyRequests
-                                                    ),
-                                                    varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
-                                                    IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
-                                                ),
-                                                varMRVisible
-                                            )
+                  Items: =FirstN(colMRFiltered, varMRVisible)
                   LayoutMinHeight: =16
                   LayoutMinWidth: =16
                   TemplatePadding: =gblTheme.Space3
@@ -393,72 +417,7 @@ Screens:
                               Icon: ="Edit"
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
-                              OnSelect: |-
-                                =// ── 1. Pointer & UI identifiers ─────────────────────────────────────────
-                                                                Set(varProjectRec,        ThisItem);
-                                                                Set(varSelectedRequest,   ThisItem);
-                                                                Set(varSelectedRequestId, ThisItem.'IntakeID Request');
-
-                                                                // ── 2. Restore category state ───────────────────────────────────────────
-                                                                Set(varCategoryName,     Text(ThisItem.'Project Category'));
-                                                                Set(varSelectedCategory, ThisItem.'Project Category');
-
-                                                                // ── 3. Restore classification flags ─────────────────────────────────────
-                                                                Set(varHasSteeringTrigger, ThisItem.'Project Classification' = "Steering Committee Project");
-                                                                Set(varRequiresPMOTriage,  ThisItem.'Project Classification' = "PMO Triage");
-                                                                Set(varJDI,                ThisItem.'Project Classification' = "Just Do It");
-                                                                Set(varRevenuePriority,    ThisItem.'Revenue Priority Flag' = true);
-
-                                                                // ── 4. Ensure question/option cache is warm ──────────────────────────────
-                                                                If(
-                                                                    IsEmpty(colIntakeQuestions),
-                                                                    ClearCollect(colIntakeQuestions,
-                                                                        Filter('Intake Questions', 'Is Active' = true)
-                                                                    );
-                                                                    ClearCollect(colQuestionOptions, 'Intake Question Options')
-                                                                );
-
-                                                                // ── 5. Rebuild dynamic question list ────────────────────────────────────
-                                                                ClearCollect(colDynamicCategoryQuestions,
-                                                                    SortByColumns(
-                                                                        Filter(
-                                                                            colIntakeQuestions,
-                                                                            'Project Category' = ThisItem.'Project Category',
-                                                                            'Is Active' = true
-                                                                        ),
-                                                                        "nod_displayorder",
-                                                                        SortOrder.Ascending
-                                                                    )
-                                                                );
-
-                                                                // ── 6. Restore colDynamicAnswers from saved JSON ─────────────────────────
-                                                                Clear(colDynamicAnswers);
-                                                                Clear(colDynamicMultiAnswers);
-                                                                If(
-                                                                    !IsBlank(ThisItem.'Dynamic Answers'),
-                                                                    ForAll(
-                                                                        ParseJSON(ThisItem.'Dynamic Answers'),
-                                                                        Collect(colDynamicAnswers, {
-                                                                            QuestionId:    GUID(Text(ThisRecord.QuestionIdText)),
-                                                                            QuestionLabel: Text(ThisRecord.QuestionLabel),
-                                                                            AnswerText:    Text(ThisRecord.AnswerText),
-                                                                            AnswerBool:    Boolean(ThisRecord.AnswerBool),
-                                                                            AnswerDate:    If(
-                                                                                               IsBlank(Text(ThisRecord.AnswerDate)),
-                                                                                               Blank(),
-                                                                                               DateTimeValue(Text(ThisRecord.AnswerDate))
-                                                                                           )
-                                                                        })
-                                                                    )
-                                                                );
-
-                                                                // ── 7. Set wizard position & navigate ───────────────────────────────────
-                                                                Set(varWizardMode,        "Resume");
-                                                                Set(varWizardStep,        1);
-                                                                Set(varGateStep,          0);
-                                                                Set(varIntakeFormVisible, false);
-                                                                Set(varTriggerScrollReset, true);
-                                                                Navigate(scrIntakeWizard, ScreenTransition.Fade)
+                              OnSelect: "=// ── 1. Pointer & UI identifiers ─────────────────────────────────────────\r\n                                Set(varProjectRec,        ThisItem);\r\n                                Set(varSelectedRequest,   ThisItem);\r\n\r\n                                // ── 2. Restore category state ───────────────────────────────────────────\r\n                                Set(varCategoryName,     Text(ThisItem.'Project Category'));\r\n                                Set(varSelectedCategory, ThisItem.'Project Category');\r\n\r\n                                // ── 3. Restore classification flags ─────────────────────────────────────\r\n                                Set(varHasSteeringTrigger, ThisItem.'Project Classification' = \"Steering Committee Project\");\r\n                                Set(varRequiresPMOTriage,  ThisItem.'Project Classification' = \"PMO Triage\");\r\n                                Set(varJDI,                ThisItem.'Project Classification' = \"Just Do It\");\r\n                                Set(varRevenuePriority,    ThisItem.'Revenue Priority Flag' = true);\r\n\r\n            \r\n                                // ── 5. Rebuild dynamic question list ────────────────────────────────────\r\n                                ClearCollect(colDynamicCategoryQuestions,\r\n                                    SortByColumns(\r\n                                        Filter(\r\n                                            colIntakeQuestions,\r\n                                            'Project Category' = ThisItem.'Project Category',\r\n                                            'Is Active' = true\r\n                                        ),\r\n                                        \"nod_displayorder\",\r\n                                        SortOrder.Ascending\r\n                                    )\r\n                                );\r\n\r\n                                // ── 6. Restore colDynamicAnswers from saved JSON ─────────────────────────\r\n                                Clear(colDynamicAnswers);\r\n                                Clear(colDynamicMultiAnswers);\r\n                                If(\r\n                                    !IsBlank(ThisItem.'Dynamic Answers'),\r\n                                    ForAll(\r\n                                        ParseJSON(ThisItem.'Dynamic Answers'),\r\n                                        Collect(colDynamicAnswers, {\r\n                                            QuestionId:    GUID(Text(ThisRecord.QuestionIdText)),\r\n                                            QuestionLabel: Text(ThisRecord.QuestionLabel),\r\n                                            AnswerText:    Text(ThisRecord.AnswerText),\r\n                                            AnswerBool:    Boolean(ThisRecord.AnswerBool),\r\n                                            AnswerDate:    If(\r\n                                                               IsBlank(Text(ThisRecord.AnswerDate)),\r\n                                                               Blank(),\r\n                                                               DateTimeValue(Text(ThisRecord.AnswerDate))\r\n                                                           )\r\n                                        })\r\n                                    )\r\n                                );\r\n\r\n                                // ── 7. Set wizard position & navigate ───────────────────────────────────\r\n                                Set(varWizardMode,        \"Resume\");\r\n                                Set(varWizardStep,        1);\r\n                                Set(varGateStep,          0);\r\n                                Set(varIntakeFormVisible, false);\r\n                                Set(varTriggerScrollReset, true);\r\n                                Navigate(scrIntakeWizard, ScreenTransition.Fade)"
                               Text: ="Resume draft"
                               Visible: =ThisItem.'Project Intake Status' = nod_pr_status_choice.Draft
                               Width: =140
@@ -474,7 +433,6 @@ Screens:
                               OnSelect: |-
                                 =Set(varSelectedRequest,  ThisItem);
                                                                 Set(varProjectRec,        ThisItem);
-                                                                Set(varSelectedRequestId, ThisItem.'IntakeID Request');
                                                                 Set(varReviewConfirmed,   false);
                                                                 ClearCollect(colReviewBasics,
                                                                     { Label: "Request Title", Value: ThisItem.'Request Title' },
@@ -559,7 +517,16 @@ Screens:
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
                               Shape: ='BadgeCanvas.Shape'.Rounded
-                              ThemeColor: =Switch(ThisItem.'Project Intake Status', nod_pr_status_choice.Draft, 'BadgeCanvas.ThemeColor'.Subtle, nod_pr_status_choice.'IT Estimate', 'BadgeCanvas.ThemeColor'.Informative, nod_pr_status_choice.Approved, 'BadgeCanvas.ThemeColor'.Success, nod_pr_status_choice.Rejected, 'BadgeCanvas.ThemeColor'.Danger, 'BadgeCanvas.ThemeColor'.Subtle)
+                              ThemeColor: |-
+                                =Switch(ThisItem.'Project Intake Status',
+                                    nod_pr_status_choice.Draft,          'BadgeCanvas.ThemeColor'.Subtle,
+                                    nod_pr_status_choice.Submitted,      'BadgeCanvas.ThemeColor'.Brand,
+                                    nod_pr_status_choice.'PMO Review',   'BadgeCanvas.ThemeColor'.Warning,
+                                    nod_pr_status_choice.'IT Estimate',  'BadgeCanvas.ThemeColor'.Informative,
+                                    nod_pr_status_choice.Approved,       'BadgeCanvas.ThemeColor'.Success,
+                                    nod_pr_status_choice.Rejected,       'BadgeCanvas.ThemeColor'.Danger,
+                                    'BadgeCanvas.ThemeColor'.Subtle
+                                )
                         - txtModified:
                             Control: ModernText@1.0.0
                             Properties:
@@ -604,11 +571,7 @@ Screens:
                   Height: =40
                   LayoutMaxWidth: =160
                   OnSelect: =Set(varMRVisible, varMRVisible + varMRPageSize)
-                  Visible: |-
-                    =varMRVisible < CountIf(colMyRequests,
-                        (varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter)
-                        And (IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch))
-                    )
+                  Visible: =varMRVisible < CountRows(colMRFiltered)
                   Width: =160
                   X: =(Parent.Width - Self.Width) / 2
                   Y: =galMRResults.Y + galMRResults.Height + gblTheme.Space3
@@ -619,14 +582,7 @@ Screens:
             CurrentScreen: ="requests"
             Fill: =gblTheme.ColorBrandPrimary
             Height: =48
-            NavItems: |-
-              =Table(
-                  { Key: "home",        Label: "Home",        IconName: "Home",        ScreenName: "scrHome",         BadgeCount: 0, Show: true },
-                  { Key: "requestform", Label: "Intake Form",  IconName: "AddDocument", ScreenName: "scrIntakeWizard", BadgeCount: 0, Show: true },
-                  { Key: "requests",    Label: "My Requests",  IconName: "Tray",        ScreenName: "scrMyRequests",   BadgeCount: 0, Show: true },
-                  { Key: "queue",       Label: "PMO Queue",    IconName: "Search",      ScreenName: "scrPMOQueue",     BadgeCount: 0, Show: varIsPMO Or varIsAdmin },
-                  { Key: "itestimate",  Label: "IT Estimate",  IconName: "Notebook",    ScreenName: "scrITEstimate",   BadgeCount: 0, Show: varIsITEstimateManager Or varIsAdmin }
-              )
+            NavItems: =colNavItems
             OnNavItemSelect: |-
               =Switch(SelectedKey,
                                 "home",        Navigate(scrHome,         ScreenTransition.Fade),
