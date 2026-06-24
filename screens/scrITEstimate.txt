@@ -335,7 +335,7 @@ Screens:
 
                           // 3. Load selected request into working variables (no status mutation on select)
                           With({_rec: LookUp('Project Intake Requests',
-                                  nod_projectintakerequestid = ThisItem.nod_projectintakerequestid)},
+                                  'Project Intake Request' = ThisItem.'Project Intake Request')},
                               Set(varProjectRec,            _rec);
                               Set(varSelectedIntakeRequest, _rec);
                               Set(varITEstimate,            _rec)
@@ -382,14 +382,14 @@ Screens:
                               BorderColor: |-
                                 =
                                 If(
-                                    Text(ThisItem.'IT Estimate Status') = "In Review",
+                                    ThisItem.'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.'In Review',
                                     Color.Orange,
                                     Color.Transparent
                                 )
                               BorderThickness: |-
                                 =
                                 If(
-                                    Text(ThisItem.'IT Estimate Status') = "In Review",
+                                    ThisItem.'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.'In Review',
                                     1,
                                     0
                                 )
@@ -397,7 +397,7 @@ Screens:
                                 =
                                 Switch(
                                     ThisItem.'IT Estimate Status',
-                                    'IT Estimate Status (Project Intake Requests)'.'Information Needeed',     gblTheme.ColorDanger,
+                                    'IT Estimate Status (Project Intake Requests)'.'Information Needed',     gblTheme.ColorDanger,
                                     'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDanger,
 
                                     // ✅ NEW In Review text color
@@ -410,7 +410,7 @@ Screens:
                                 =
                                 Switch(
                                     ThisItem.'IT Estimate Status',
-                                    'IT Estimate Status (Project Intake Requests)'.'Information Needeed',     gblTheme.ColorDangerBg,
+                                    'IT Estimate Status (Project Intake Requests)'.'Information Needed',     gblTheme.ColorDangerBg,
                                     'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDangerBg,
 
                                     // ✅ NEW In Review color
@@ -1032,7 +1032,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =gblTheme.ColorBorderStrong
+            Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varIsSubmitting
             Width: =App.Width
@@ -1315,7 +1315,7 @@ Screens:
                                   Control: Button@0.0.45
                                   Properties:
                                     Appearance: ='ButtonCanvas.Appearance'.Secondary
-                                    BasePaletteColor: =gblColorText
+                                    BasePaletteColor: =gblTheme.ColorTextPrimary
                                     DisplayMode: |-
                                       =If(
                                       Len(Trim(txtContactMessage.Text)) > 0,
@@ -1347,7 +1347,7 @@ Screens:
                                                                                 Collect(colEstimateAudit,
                                                                                     {
                                                                                         EventType:   "Info Requested",
-                                                                                        ChangedBy:   varCurrentSystemUserId,
+                                                                                        ChangedBy:   varAppUser.Name,
                                                                                         ChangedAt:   Now(),
                                                                                         Notes:       txtContactMessage.Text,
                                                                                         StatusColor: 'BadgeCanvas.ThemeColor'.Warning
@@ -1568,7 +1568,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =gblTheme.ColorSurfaceAlt
+            Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varEstimateInputSelect
             Width: =App.Width
@@ -1947,18 +1947,15 @@ Screens:
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
                         OnSelect: |-
-                          =
-                          Set(varEstimateInputSelect, false);
-
-                                  Reset(radEstimateHours);
-                                  Reset(radEstimateITSystems);
-                                  Reset(dtpStartMonth);
-
-                                  Set(varEstimateHours, Blank());
-                                  Set(varEstimateSystems, Blank());
-                                  Set(varEstimateStartMonth, Blank());
-                                  Set(varEffortScore, 0);
-                                  Set(varEffortLabel, Blank())
+                          =Set(varEstimateInputSelect, false);
+                          Reset(radEstimateHours);
+                          Reset(radEstimateITSystems);
+                          Reset(dtpStartMonth);
+                          Set(varEstimateHours, Blank());
+                          Set(varEstimateSystems, Blank());
+                          Set(varEstimateStartMonth, Blank());
+                          Set(varEffortScore, 0);
+                          Set(varEffortLabel, Blank());
                         Text: ="Cancel"
                         Width: =120
                   - btnSaveEstimateModal:
@@ -2020,7 +2017,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =Color.DarkGray
+            Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varShowNotesPanel
             Width: =App.Width
