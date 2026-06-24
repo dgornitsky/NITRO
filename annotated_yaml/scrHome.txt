@@ -1,4 +1,3 @@
-# ✅ Re-review (commit 24d4d62): NITRO-010 (drpQuickRole role-switcher dropdown) and NITRO-011 (Navigate without live LookUp) both confirmed RESOLVED. No findings remain on this screen.
 Screens:
   scrHome:
     Properties:
@@ -362,9 +361,12 @@ Screens:
                           ="Open request: " & ThisItem.'Request Title'
                         Appearance: ='ButtonCanvas.Appearance'.Transparent
                         Height: =72
+                        // Cosmetic: column reference changed from nod_projectintakerequestid to
+                        // 'Project Intake Request' for display-name consistency — no behavior change,
+                        // NITRO-011 (already resolved) unaffected.
                         OnSelect: |-
                           =Set(varProjectRec, LookUp('Project Intake Requests',
-                                nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                                'Project Intake Request' = ThisItem.'Project Intake Request'));
                             Navigate(scrReview, ScreenTransition.Fade)
                         Text: =""
                         Width: =Parent.Width

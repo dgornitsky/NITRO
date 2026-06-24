@@ -30,6 +30,34 @@ After the initial report above was delivered, edits were pushed to GitHub touchi
 
 **Net assessment: this pass is a real net improvement** (10 findings fully closed) **but introduces two new Critical defects that did not exist before.** The branch is closer to production-ready on functionality (the Resume-mode bug, the two undefined-identifier bugs, and one of two column-name bugs are genuinely fixed) but is **not mergeable as-is** until NITRO-030 and NITRO-033 are corrected — both are likely to cause a hard failure (malformed App.OnStart semantics; a Studio compile error on scrITEstimate, respectively).
 
+## Re-Review Addendum #2 (commit `5b8f41f`)
+
+A further round of edits landed on the branch, this time touching `App.OnStart.txt`, `scrHome.txt`, `scrITEstimate.txt`, `scrMyRequests.txt`, `scrPMOQueue.txt`, and `scrAdminQuestions.txt` (plus `screens/AllScreens`). `scrMyRequests` and `scrAdminQuestions` enter scope for the first time in this pass. Full detail in `findings_summary.md`; headline results:
+
+**Both prior-pass Critical regressions are fixed:**
+- **NITRO-030 — RESOLVED.** The broken line was commented out entirely (`//Set(varSelectedApprovalRec, Blank());`) and the compensating extra `)` at end-of-file was removed. Re-verified the whole file's paren count is balanced with no cascading-statement risk. Functionally equivalent to the original intent — an un-`Set()` global variable is blank by default in Power Apps, so commenting out the line has the same effect as `Set(..., Blank())` would have.
+- **NITRO-033 — RESOLVED.** `'Information Needeed'` corrected to `'Information Needed'` in both the `Color` and `Fill` Switches on `lblEstimateStatus`.
+
+**Confirmed fully resolved (additional):**
+- **NITRO-031** — a new `gblTheme.ColorScrim: RGBA(15,23,42,0.5)` token was added and applied to all three modal-scrim `Fill` properties (`conSavingOverlay`, `conOverlayEstimate`, `conNotesModal`). All three are now properly semi-transparent.
+- **NITRO-006** — both remaining `'IntakeID Request'` occurrences (the reclass-confirm `RemoveIf` and the one embedded in `btnReturnToSubmitter.OnSelect`'s inline string) are now corrected to `'Project Intake Request'`. This finding is fully closed.
+- **NITRO-019** — both hardcoded email Cc fields and the confirmation `Notify()` text now reference a new `varPMOEmail` variable, which App.OnStart's `Concurrent()` block loads from a Dataverse Environment Variable (`nod_NITROPMOEmail`) with a `Default Value` fallback via `Coalesce()`. This is the correct pattern.
+- **NITRO-020** — all three `colEstimateAudit` `Collect()` calls now use `varAppUser.Name` for `ChangedBy` consistently (previously one used `varCurrentSystemUserId`).
+- **NITRO-021** — `gblColorText` legacy shim reference replaced with `gblTheme.ColorTextPrimary`.
+- **NITRO-034** — `lblEstimateStatus.BorderColor`/`.BorderThickness` now compare `ThisItem.'IT Estimate Status'` against the fully-qualified enum member, matching the sibling `Color`/`Fill` properties on the same control.
+- **NITRO-025** — `scrAdminQuestions`' `ddAdminQType` migrated from legacy `DropDown@0.0.45` to `ModernCombobox@1.1.0`.
+- **NITRO-009** — superseded by a rewrite: the classification-badge `Switch` on scrMyRequests now compares `ThisItem.'Auto-Classified Outcome'` against fully-qualified enum members, which also corrects what was apparently the wrong source column (`'Project Classification'`). Cross-checked against the same field/enum usage in scrIntakeWizard and scrPMOQueue — consistent.
+- **NITRO-024** — the stray leading `=` blank line in `btnCloseEstimateModal.OnSelect` is gone; the formula is now cleanly reformatted.
+
+**Partially resolved — do not mark closed:**
+- **NITRO-032** — 1 of 3 raw-`Color.*` spots fixed (the notes-modal scrim, now `gblTheme.ColorScrim`). `Color.DarkOrange` and `Color.LightGoldenRodYellow` in the "In Review" Switch branches are still raw constants, not tokens.
+- **NITRO-008 → NITRO-036** — scrMyRequests' `View details` `OnSelect` now correctly re-fetches the record via `LookUp()` instead of binding `varSelectedRequest`/`varProjectRec` to stale `ThisItem` (this closes the original NITRO-008 navigation-pointer bug). However, the three `ClearCollect()` calls immediately following it (`colReviewBasics`, `colReviewBenefits`, `colReviewGovernance` — the data that actually populates the review screen) still read from the original `ThisItem`, not the freshly-fetched record. Logged as **NITRO-036 (High)** — same bug class, only half-fixed.
+
+**New finding:**
+- **NITRO-037 (Low)** — the reformatted `OnSelect` in scrMyRequests (the NITRO-036 fix attempt) has inconsistent indentation across its `ClearCollect()` calls. Cosmetic only; Power Fx formula whitespace doesn't affect parsing.
+
+**Net assessment: this pass closes out the regressions from the previous pass cleanly** — both Criticals (NITRO-030, NITRO-033) are genuinely fixed, not just relocated, and seven more High/Medium findings closed alongside them. Only one Critical remains open (NITRO-026, an ALM/missing-file concern unrelated to any edit pass), and the one new finding (NITRO-036) is a real but narrow functional gap, not a regression of equal severity to what it replaced. **This is the most production-ready state the branch has been in across all three review passes.**
+
 ## App.OnStart
 
 **✅ RESOLVED — NITRO-001 (was Critical):** Role flags used the banned `If(x = true, true, false)` wrapper.
@@ -103,30 +131,48 @@ All other dimensions on scrHome (Performance — staleness flag `varHomeDataStal
 
 ## scrMyRequests
 
-**Performance/Functionality — NITRO-008 (High):** Gallery row actions hydrate from `ThisItem` instead of a live `LookUp()`.
+**🟡 PARTIALLY RESOLVED — NITRO-008 → NITRO-036 (was High):** Gallery row actions used to hydrate from `ThisItem` instead of a live `LookUp()`.
 
 ```
-// ❌ Current (scrMyRequests.txt:434-435)
+// ❌ Was (scrMyRequests.txt:434-435)
 =Set(varSelectedRequest,  ThisItem);
 Set(varProjectRec,        ThisItem);
 ```
 ```
-// ✅ Fixed
+// ✅ Now — navigation pointer fixed
 =Set(varSelectedRequest, LookUp('Project Intake Requests',
-    nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
-Set(varProjectRec, varSelectedRequest)
+    'Project Intake Request' = ThisItem.'Project Intake Request'));
+Set(varProjectRec, varSelectedRequest);
 ```
-**Impact:** Same class of bug as K-05, which was already fixed on scrPMOQueue's `galQueue.OnSelect` but never propagated here — the user can act on a stale snapshot of their own request (e.g., resuming a draft that was just updated by a PMO triage action in another session/tab).
+```
+// ⚠️ But still stale — the very next 3 ClearCollect() calls in the same OnSelect
+ClearCollect(colReviewBasics,
+    { Label: "Request Title", Value: ThisItem.'Request Title' }, ...);   // ← ThisItem, not the fresh _rec/varSelectedRequest
+ClearCollect(colReviewBenefits, ...);   // same issue
+ClearCollect(colReviewGovernance, ...); // same issue
+```
+**Status:** The pointer bug (`varSelectedRequest`/`varProjectRec`) is fixed — it now matches the pattern used everywhere else in the app. But `colReviewBasics`/`colReviewBenefits`/`colReviewGovernance`, which is the data that actually renders on `scrReview`, still reads the original `ThisItem` rather than the freshly-fetched record. Net effect: the *record pointer* navigated to is fresh, but the *summary data displayed* can still be stale. Logged as **NITRO-036 (High)** — re-open until all four operations share the same fetched record (e.g. wrap the whole block in `With({_rec: LookUp(...)}, ...)`).
 
-**Functionality — NITRO-009 (High):** Literal Choice-column string comparison that may never match.
+**✅ RESOLVED — NITRO-009 (was High):** Literal Choice-column string comparison that may never match.
 
 ```
-// ❌ Current (scrMyRequests.txt:555)
-"Steering Committee Project", gblTheme.ColorClassSteering,
+// ❌ Was (scrMyRequests.txt:555)
+=Switch(ThisItem.'Project Classification',
+    "Steering Committee Project", gblTheme.ColorClassSteering, ...)
 ```
-**Impact:** The actual classification value elsewhere in the app is referenced via the fully-qualified Choice (`'Project Classification'`/`'Auto-Classified Outcome'` enum members), not this exact string. If the option-set label differs even slightly (capitalization, trailing text), this branch silently never fires and falls through to default styling — a cosmetic bug today, but evidence of a literal-vs-enum mismatch pattern that recurs at NITRO-023.
+```
+// ✅ Now
+=Switch(ThisItem.'Auto-Classified Outcome',
+    'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project', gblTheme.ColorClassSteering,
+    'Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage',       gblTheme.ColorClassPMO,
+    'Auto-Classified Outcome (Project Intake Requests)'.'Just Do It',       gblTheme.ColorClassJDI,
+    gblTheme.ColorBorder)
+```
+**Status:** Confirmed fixed — this also corrects what was apparently the wrong source column (`'Project Classification'` → `'Auto-Classified Outcome'`); cross-checked against the same field/enum pairing used in scrIntakeWizard and scrPMOQueue.
 
-**YAML Syntax (Medium, untracked ID — folded into general report note):** `btnResume.OnSelect` is written as an inline-quoted multi-line string rather than the `|-` block scalar. Functionally equivalent, but inconsistent with the rest of the codebase and harder to diff in source control.
+**🔵 NEW — NITRO-037 (Low):** The reformatted `OnSelect` above has inconsistent indentation across its `ClearCollect()` calls (introduced as a side effect of the NITRO-036 fix attempt). Cosmetic only — Power Fx formula whitespace doesn't affect parsing.
+
+**YAML Syntax (Medium, untracked ID — folded into general report note):** `btnResume.OnSelect` is still written as an inline-quoted multi-line string rather than the `|-` block scalar. Functionally equivalent, but inconsistent with the rest of the codebase and harder to diff in source control.
 
 ## scrIntakeWizard
 
@@ -348,7 +394,19 @@ Switch(ThisItem.'IT Estimate Status', 'IT Estimate Status (Project Intake Reques
 
 ## scrAdminQuestions
 
-**Design System — NITRO-025 (Medium):** This screen exclusively uses legacy non-`Modern*` controls (`Button@0.0.45`, `DropDown@0.0.45`, `Toggle@1.1.5`, `Rectangle@2.3.0`) while the rest of the app (scrHome, scrIntakeWizard, scrReview) has migrated to `ModernButton@1.0.0`/`ModernDropdown@1.0.1`/`ModernText@1.0.0`. No functional defect, but a visible/behavioral inconsistency.
+**✅ PARTIALLY RESOLVED — NITRO-025 (was Medium):** This screen used to exclusively use legacy non-`Modern*` controls. `ddAdminQType` has now been migrated:
+
+```
+// ❌ Was
+Control: DropDown@0.0.45
+Properties: { ..., LayoutMinHeight: =44 }
+```
+```
+// ✅ Now
+Control: ModernCombobox@1.1.0
+Properties: { ..., ItemDisplayText: =ThisItem.Value, LayoutMinHeight: =16 }
+```
+**Status:** One control converted; `Button@0.0.45`, `Toggle@1.1.5`, and `Rectangle@2.3.0` elsewhere on the screen are still legacy. Migration is in progress, not complete — keeping this open at Medium until the rest of the screen follows.
 
 **Positive finding:** `OnVisible` correctly implements the role-gate + `varRedirectToHome` flag pattern, paired with `tmrAdminRedirect` (`AutoStart: =true`, `Start: =varRedirectToHome`) — this is the cleanest example of the Timer-redirect pattern in the app and should be the template scrPMOQueue is brought into line with (NITRO-015). All Patch() calls to `'Intake Questions'` and `'Intake Question Options'` are wrapped in `IfError()`. No Critical or High findings on this screen.
 
@@ -366,45 +424,40 @@ Switch(ThisItem.'IT Estimate Status', 'IT Estimate Status (Project Intake Reques
 | K-02 | Role flags use `Coalesce(x, false)` | **Resolved** | App.OnStart.txt:207-210 now uses the bare `varAppUser.X = true` pattern; the previously-flagged `If(...,true,false)` wrapper is gone |
 | K-03 | scrITEstimate `galEstimateRequests.OnSelect` uses `LookUp()` inside `Patch()`'s 2nd parameter | **Resolved** | `galEstimateRequests.OnSelect` now hydrates via `With({_rec: LookUp(...)}, Set(varProjectRec, _rec); ...)` instead of `ThisItem`; no `LookUp()`-inside-`Patch()` found anywhere |
 | K-04 | scrPMOQueue `btnApproveRoute.OnSelect` missing `IfError()` | **Resolved** | Patch call is correctly wrapped in `IfError()` |
-| K-05 | scrPMOQueue `galQueue.OnSelect` uses `ThisItem` instead of live `LookUp()` | **Resolved on scrPMOQueue/scrHome/scrITEstimate / Still Present on scrMyRequests** | scrPMOQueue, scrHome (NITRO-011), and scrITEstimate (NITRO-017) now all correctly use `LookUp()`; scrMyRequests (NITRO-008) is the one remaining `ThisItem` occurrence |
+| K-05 | scrPMOQueue `galQueue.OnSelect` uses `ThisItem` instead of live `LookUp()` | **Resolved everywhere for the navigation pointer; one residual gap on scrMyRequests** | scrPMOQueue, scrHome (NITRO-011), and scrITEstimate (NITRO-017) are fully resolved. scrMyRequests now also re-fetches via `LookUp()` for `varSelectedRequest`/`varProjectRec`, but its `colReviewBasics`/`colReviewBenefits`/`colReviewGovernance` `ClearCollect()` calls still read stale `ThisItem` (NITRO-036) |
 | K-06 | `Navigate()` called directly inside `OnVisible` | **Resolved** | No direct `Navigate()` found in any `OnVisible`, including the newly-edited scrPMOQueue/scrIntakeWizard `OnVisible` blocks |
 | K-07 | Direct `Patch()` to `'Project Intake Audit'` from Canvas | **Resolved** | Unaffected by this edit pass; still no direct Patch to `'Project Intake Audit'` found anywhere |
 | K-08 | `scrTestHarness` exists in solution and must be excluded from Prod export | **Cannot verify** | File still absent from repository entirely (NITRO-026) |
 | K-09 | Unmanaged dependency on `cre6c_sharedcommondataserviceforapps_35703` | **Still Present (assumed)** | Solution-package-level concern; not visible in screen YAML, unaffected by this edit pass |
 | K-10 | `Concurrent()` not used where independent OnVisible queries exist | **Resolved (where checked)** | Unaffected by this edit pass; scrPMOQueue's 3-query `Concurrent()` block is preserved correctly inside the new role-gate nesting |
-| K-11 | Hardcoded RGBA/font sizes instead of `gblTheme.*` | **Still Present, partially improved** | scrPMOQueue's occurrence (NITRO-012) is now resolved. scrITEstimate dropped from 15 to 7 confirmed remaining hardcoded RGBA literals (NITRO-018), but 2 more were "fixed" into raw `Color.*` constants instead of tokens (NITRO-032) — net non-compliant count did not actually shrink as much as the RGBA count suggests |
-| K-12 | `varSelectedApprovalRec` initialized as `""` instead of `Blank()` | **Fix attempt failed — New Variant, now Critical** | App.OnStart.txt:291 was changed to `Set(varSelectedApprovalRec, Blank();` — missing closing paren (NITRO-030). The variable is no longer typed as text, but it's also not cleanly `Blank()`; it resolves to the return value of the file's final `ClearCollect()` due to the parsing cascade this typo causes |
+| K-11 | Hardcoded RGBA/font sizes instead of `gblTheme.*` | **Still Present, substantially improved** | scrPMOQueue's occurrence (NITRO-012) is resolved. scrITEstimate's 3 modal scrims now use the new `gblTheme.ColorScrim` token (NITRO-031 resolved). 7 hardcoded RGBA literals remain (NITRO-018), and 2 of 3 raw-`Color.*` swaps remain unconverted (NITRO-032, down from 2 of 2 spots) |
+| K-12 | `varSelectedApprovalRec` initialized as `""` instead of `Blank()` | **Resolved** | App.OnStart's `Set(varSelectedApprovalRec, Blank());` line is now commented out entirely (NITRO-030 fixed) — functionally equivalent to `Blank()` since an un-`Set()` global defaults to blank |
 
 ## Production Readiness Assessment
 
-*(updated for re-review commit `24d4d62`)*
+*(updated for re-review commit `5b8f41f`)*
 
-- [ ] All Critical findings resolved — **No**, 3 open (NITRO-030, NITRO-033, NITRO-026) — down from 9, but 2 are newly-introduced regressions
-- [ ] All High findings resolved or accepted with documented risk — **No**, 6 open — down from 7
+- [ ] All Critical findings resolved — **No**, 1 open (NITRO-026, unrelated to this edit pass) — down from 3
+- [ ] All High findings resolved or accepted with documented risk — **No**, 3 open (NITRO-014, NITRO-027, NITRO-036) — down from 6
 - [ ] scrTestHarness removed from solution — **Unconfirmed**, file absent from repo entirely
-- [ ] No hardcoded environment values — **No**, hardcoded emails on scrITEstimate (NITRO-019), unchanged
+- [ ] No hardcoded environment values — **Yes**, scrITEstimate's hardcoded emails (NITRO-019) now resolved via `varPMOEmail` Environment Variable
 - [ ] Solution Checker critical (connection reference) resolved — **No**, K-09 still open per stated baseline
-- [ ] Role flag pattern confirmed as `x = true` across all screens — **Yes**, App.OnStart now uses the bare pattern app-wide (NITRO-001 resolved)
+- [ ] Role flag pattern confirmed as `x = true` across all screens — **Yes**, unchanged from prior pass (NITRO-001 resolved)
 - [ ] All Patch() calls wrapped in IfError() — **Yes**, on every Patch() call observed across all screens
-- [ ] No Navigate() in OnVisible — **Yes**, confirmed app-wide, including newly-edited OnVisible blocks
+- [ ] No Navigate() in OnVisible — **Yes**, confirmed app-wide
 - [ ] No direct Canvas Patch to 'Project Intake Audit' — **Yes**, confirmed app-wide
-- [ ] Concurrent() used for parallel OnVisible queries — **Yes**, where applicable (scrPMOQueue, preserved through the new role-gate edit)
-- [ ] Delegation verified for all gallery Filter() calls — **Partially**, all `Filter()` predicates observed use delegable `=`/`<>` comparisons on Dataverse columns; no `Search()`/`In`/non-delegable patterns found
-- [ ] No new syntax errors introduced by recent edits — **No**, App.OnStart's `varSelectedApprovalRec` fix (NITRO-030) has a paren-balance defect, and scrITEstimate's status-Switch fix (NITRO-033) appears to reference a typo'd enum member
+- [ ] Concurrent() used for parallel OnVisible queries — **Yes**, where applicable; App.OnStart's `Concurrent()` also now loads `varPMOEmail` in parallel with the existing choices/user queries
+- [ ] Delegation verified for all gallery Filter() calls — **Partially**, unchanged from prior pass — all delegable
+- [ ] No new syntax errors introduced by recent edits — **Yes**, both prior-pass regressions (NITRO-030, NITRO-033) are now cleanly fixed; no new paren-balance or enum-typo issues found in this pass's diff
 
-**Verdict: Still not production-ready, but materially improved.** The Resume-mode state bug, both undefined-identifier bugs, the role-flag pattern, and most of the `ThisItem`-hydration anti-pattern are now genuinely fixed. However, this edit pass introduced **two new Critical defects** (NITRO-030, NITRO-033) that are arguably riskier than what they replaced, because they're subtle: NITRO-030 silently mis-assigns a variable rather than throwing an obvious error, and NITRO-033 may simply fail to save/publish in Studio. Both must be fixed before the next merge.
+**Verdict: Materially closer to production-ready.** Both Critical regressions from the previous pass (NITRO-030, NITRO-033) are genuinely resolved, not just relocated, and seven more High/Medium findings closed alongside them (NITRO-006, NITRO-019, NITRO-020, NITRO-021, NITRO-031, NITRO-034, NITRO-009, NITRO-025, NITRO-024). The only Critical left open (NITRO-026) is an ALM/missing-file concern that predates and is unrelated to any of the three edit passes. The one new finding this pass introduced (NITRO-036) is a real but narrow functional gap — not a regression of comparable severity to what came before. Remaining blockers before merge are NITRO-036 (stale review-summary data) and the repo-hygiene items (NITRO-026, NITRO-027); everything else is cosmetic/cleanup.
 
 ## Recommended Fix Order
 
-*(updated for re-review commit `24d4d62`)*
+*(updated for re-review commit `5b8f41f`)*
 
-1. **App.OnStart** — fix the malformed `Set(varSelectedApprovalRec, Blank();` statement (NITRO-030). Rewrite as two cleanly-closed statements; this is the highest priority because it currently corrupts the structure of every statement after it in the file.
-2. **scrITEstimate** — fix the typo'd Choice enum member `'Information Needeed'` → the correct option label (NITRO-033); verify it actually saves/compiles in Studio.
-3. **scrPMOQueue** — fix the remaining two `'IntakeID Request'` → `'Project Intake Request'` occurrences (NITRO-006 at the reclass-confirm flow, and embedded in NITRO-014's inline-quoted `btnReturnToSubmitter.OnSelect` string).
-4. **scrITEstimate** — restore transparency on the 3 modal scrim `Fill` properties; add a dedicated `gblTheme.ColorScrim` token with an alpha channel rather than reusing opaque surface/border tokens (NITRO-031).
-5. **scrMyRequests** — replace the one remaining `ThisItem` gallery-hydration call site with live `LookUp()` (NITRO-008), matching the pattern now correct everywhere else.
-6. **scrITEstimate** — finish converting the remaining 7 hardcoded RGBA literals and the 2 raw `Color.*` constants to `gblTheme` tokens (NITRO-018, NITRO-032); align `BorderColor`/`BorderThickness` on `lblEstimateStatus` to use the same enum-member comparison as the adjacent `Color`/`Fill` properties (NITRO-034).
-7. **scrITEstimate** — move hardcoded emails to Environment Variables (NITRO-019); reconcile `ChangedBy` identity convention, which still flips between `varAppUser.Name` and `varCurrentSystemUserId` (NITRO-020).
-8. **scrPMOQueue** — convert `btnReturnToSubmitter.OnSelect` from an inline-quoted string to `\|-` block style (NITRO-014); clean up the inconsistent indentation introduced in the `OnVisible` role-gate fix (NITRO-035).
-9. **Repository hygiene** — resolve the `screens/AllScreens` divergence (NITRO-027, which changed again in this edit pass — 1469 lines touched) and confirm the true status of `scrTestHarness` (NITRO-026) before the next Prod pipeline run.
-10. **Cosmetic/consistency pass** — default control renames (NITRO-022), legacy-control migration on scrAdminQuestions (NITRO-025), legacy shim cleanup (NITRO-021, NITRO-028), stray leading `=` line (NITRO-024).
+1. **scrMyRequests** — rebind `colReviewBasics`/`colReviewBenefits`/`colReviewGovernance` to the freshly-fetched record instead of stale `ThisItem` (NITRO-036) — this is the only remaining functional gap of consequence.
+2. **scrTestHarness / Repository hygiene** — confirm the true status of `scrTestHarness` (NITRO-026) and resolve the `screens/AllScreens` divergence (NITRO-027, changed again in this pass).
+3. **scrPMOQueue** — convert `btnReturnToSubmitter.OnSelect` from an inline-quoted string to `\|-` block style (NITRO-014).
+4. **scrITEstimate** — finish converting the remaining 7 hardcoded RGBA literals (NITRO-018) and the 2 remaining raw-`Color.*` constants (`Color.DarkOrange`, `Color.LightGoldenRodYellow` — NITRO-032) to `gblTheme` tokens.
+5. **Cosmetic/consistency pass** — default control renames on scrITEstimate (NITRO-022), legacy shim cleanup in App.OnStart (NITRO-028), scrPMOQueue `OnVisible` indentation (NITRO-035), scrMyRequests `OnSelect` indentation (NITRO-037).

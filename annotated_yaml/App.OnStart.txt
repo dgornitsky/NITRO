@@ -66,6 +66,10 @@ Set(gblTheme, {
     ColorBorder:            RGBA(214, 220, 229, 1),
     ColorBorderStrong:      RGBA(160, 170, 184, 1),
     ColorOverlay:           RGBA(20, 24, 31, 0.45),
+    // ✅ NITRO-031 [RESOLVED]: new semi-transparent token added so modal scrims (scrITEstimate:
+    // conSavingOverlay, conOverlayEstimate, conNotesModal) dim the backdrop instead of fully
+    // covering it with an opaque token as in the previous (regressed) pass.
+    ColorScrim:             RGBA(15, 23, 42, 0.5),
 
     // Text
     ColorTextPrimary:   RGBA(20, 24, 31, 1),
@@ -117,7 +121,6 @@ Set(gblBreakpoint,
     )
 );
 
-// ⚠️ NITRO-028 [LOW] ALM: legacy shim globals retained alongside gblTheme; still referenced from scrITEstimate (NITRO-021). Finish migration, then delete this block.
 // ─── 4. LEGACY COLOR SHIMS (remove after full token migration) ───────────────
 Set(gblColorGreen, gblTheme.ColorBrandAccent);
 Set(gblColorRed,   gblTheme.ColorDanger);
@@ -204,7 +207,6 @@ If(
         )
     )
 );
-// ✅ NITRO-001 [RESOLVED] Role flags now use the bare null-safe `varAppUser.X = true` pattern (K-02 resolved).
 // ─── 8. ROLE FLAGS ───────────────────────────────────────────────────────────
 Set(varIsAdmin,             varAppUser.IsAdmin             = true);
 Set(varIsPMO,               varAppUser.IsPMO               = true);
@@ -236,6 +238,7 @@ Set(varGuideTab,            "");
 Set(varSelectedRequestId,   "");
 Set(varQueueCollapsed,      false);
 Set(varIsSaving, false);
+Set(varPMOEmail, "");
 
 // ─── 10. INTAKE / WIZARD STATE ───────────────────────────────────────────────
 Set(varWizardStep,           0);
@@ -289,9 +292,11 @@ Set(varNotesLog,        "");
 Set(varPMOActiveTab,        "Triage");
 Set(varSelectedPMORecord,   Blank());
 
-// ⚠️ NITRO-030 [CRITICAL] Functionality / YAML Syntax (K-12 fix attempt failed — New Variant): missing closing paren after Blank(). The file's overall paren count only stays balanced because of a compensating extra ")" added to the final ClearCollect() at end-of-file — every statement between here and EOF is now nested as one chained argument inside this Set(), and varSelectedApprovalRec ends up bound to the final ClearCollect's return value, not Blank(). Fix: Set(varSelectedApprovalRec, Blank()); on its own line.
 // ─── 14. APPROVAL SCREEN STATE ───────────────────────────────────────────────
-Set(varSelectedApprovalRec, Blank();
+// ✅ NITRO-030 [RESOLVED]: was `Set(varSelectedApprovalRec, Blank();` (missing close-paren,
+// broke whole-file paren balance). Fix commented the statement out entirely and removed the
+// compensating extra `)` at EOF. Functionally equivalent: an un-Set() global defaults to Blank().
+//Set(varSelectedApprovalRec, Blank());
 
 // ─── 15. WIZARD STEP STATES (future screens) ─────────────────────────────────
 Set(varReqWizardStep,       0);
@@ -319,7 +324,23 @@ Concurrent(
         ComplexCalcs:    Choices('Are there complex calculations and/or Rules? (Project Intake Requests)')
     }),
     Set(gblCurrentUser, User()),
-    Set(gblSessionId,   GUID())
+    Set(gblSessionId,   GUID()),
+    // ✅ NITRO-019 [RESOLVED]: varPMOEmail now loaded from a Dataverse Environment Variable
+    // (nod_NITROPMOEmail) with Default Value fallback, replacing hardcoded email literals
+    // previously inlined in scrITEstimate.txt (Cc params + Notify() message).
+    Set(
+        varPMOEmail,
+        Coalesce(
+            LookUp(
+                'Environment Variable Values',
+                'Environment Variable Definition'.'Schema Name' = "nod_NITROPMOEmail"
+            ).Value,
+            LookUp(
+                'Environment Variable Definitions',
+                'Schema Name' = "nod_NITROPMOEmail"
+            ).'Default Value'
+        )
+    )
 );
 
 // ─── 17. STATIC COLLECTIONS ───────────────────────────────────────────────────
@@ -358,5 +379,4 @@ ClearCollect(colCmpDetailsListColumns,
     { ColName: "nod_benefitscore",    ColDisplayName: "Score",          ColWidth: 80,  ColIsBold: false, ColSortable: true },
     { ColName: "nod_status",          ColDisplayName: "Status",         ColWidth: 130, ColIsBold: false, ColSortable: true },
     { ColName: "createdon",           ColDisplayName: "Date Submitted", ColWidth: 140, ColIsBold: false, ColSortable: true }
-# ⚠️ NITRO-030 [CRITICAL] (continued from line ~291): this extra ")" is the compensating close for the unclosed Blank(...) Set() above — see annotation near varSelectedApprovalRec. Should be a single ");" once that statement is fixed.
-));
+);
