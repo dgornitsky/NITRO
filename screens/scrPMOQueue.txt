@@ -5,6 +5,13 @@ Screens:
       OnVisible: |-
         =// scrPMOQueue.OnVisible — expanded authorized path
         Set(varRedirectToHome, false);
+        If(
+                    Not(varAppReady),
+                    true,
+                    If(
+                        Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
+                        Set(varRedirectToHome, true),
+                        Set(varRedirectToHome, false);
         Concurrent(
             // ── Triage queue: PMO-actionable (Submitted / PMO Review) ─────────────────
             ClearCollect(
@@ -63,7 +70,7 @@ Screens:
             Not(IsEmpty(colPMOTriageQueue)),
             Set(varSelectedPMORecord, First(colPMOTriageQueue)),
             Set(varSelectedPMORecord, Blank())
-        )
+        )))
     Children:
       - cntMain:
           Control: GroupContainer@1.5.0
@@ -431,11 +438,8 @@ Screens:
                                     AccessibleLabel: ="Submit this PMO Triage request to IT for estimation"
                                     BasePaletteColor: =gblTheme.ColorBrandPrimary
                                     DisplayMode: |-
-                                      =If(
-                                                        varIsPMO And Not(IsBlank(varSelectedPMORecord)) And PMOStage = "NeedsEstimate",
-                                                        DisplayMode.Edit,
-                                                        DisplayMode.Disabled
-                                                    )
+                                      =If(varIsPMO And Not(IsBlank(varSelectedPMORecord)) And varPMOStage = "NeedsEstimate",
+                                        DisplayMode.Edit,DisplayMode.Disabled)
                                     FillPortions: =1
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
@@ -461,7 +465,7 @@ Screens:
                                               // ── Remove routed record from local PMO queue collection ─────────────
                                               RemoveIf(
                                                   colPMOTriageQueue,
-                                                  'IntakeID Request' = _patched.'IntakeID Request'
+                                                  'Project Intake Request' = _patched.'Project Intake Request'
                                               );
 
                                               // ── In-session audit entry (Dataverse audit flow deferred) ───────────
@@ -656,7 +660,7 @@ Screens:
           Control: CanvasComponent
           ComponentName: cmpHeader
           Properties:
-            EnvironmentLabel: ="Text"
+            EnvironmentLabel: =varEnvironmentLabel
             Fill: =gblTheme.ColorBrandPrimary
             Height: =56
             OnBackSelect: =
@@ -667,8 +671,8 @@ Screens:
           Control: CanvasComponent
           ComponentName: cmpPrimaryNav
           Properties:
-            CurrentScreen: ="Text"
-            Fill: =RGBA(1, 81, 52, 1)
+            CurrentScreen: ="queue"
+            Fill: =gblTheme.ColorBrandAccent
             Height: =48
             NavItems: |-
               =Table(
