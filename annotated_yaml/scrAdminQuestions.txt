@@ -1,0 +1,1096 @@
+Screens:
+  scrAdminQuestions:
+    Properties:
+      Fill: =gblTheme.ColorSurfaceAlt
+      Height: =App.Height
+      OnVisible: |-
+        =// scrAdminQuestions.OnVisible
+        If(
+            Not(varIsAdmin Or varIsPMO),
+            Set(varRedirectToHome, true),
+            Set(varRedirectToHome, false);
+            Concurrent(
+                Set(varAdminShowQuestionPanel, false),
+                Set(varAdminSelectedQuestion,  Blank()),
+                Set(varAdminEditMode,          "New")
+            );
+            If(
+                varAdminQuestionsStale Or IsEmpty(colIntakeQuestions),
+                ClearCollect(colIntakeQuestions,
+                    Filter('Intake Questions', 'Is Active' = true)
+                );
+                Set(varAdminQuestionsStale, false)
+            );
+            ClearCollect(colAdminCategoryQuestions,
+                SortByColumns(
+                    Filter(colIntakeQuestions,
+                        Text('Project Category') = varAdminSelectedCategory,
+                        'Is Active' = true
+                    ),
+                    "nod_displayorder", SortOrder.Ascending
+                )
+            )
+        )
+      Width: =App.Width
+    Children:
+      - cmpHeader_AdminQuestions:
+          Control: CanvasComponent
+          ComponentName: cmpHeader
+          Properties:
+            EnvironmentLabel: =""
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =56
+            OnBackSelect: =Navigate(scrHome, ScreenTransition.Fade)
+            ShowBackButton: =true
+            Title: ="Question Admin"
+            Width: =Parent.Width
+      - cmpPrimaryNav_Admin:
+          Control: CanvasComponent
+          ComponentName: cmpPrimaryNav
+          Properties:
+            CurrentScreen: ="admin"
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =48
+            NavItems: |-
+              =Table(
+                  { Key: "home",        Label: "Home",        IconName: "Home",        ScreenName: "scrHome",         BadgeCount: 0 },
+                  { Key: "requestform", Label: "Intake Form", IconName: "AddDocument", ScreenName: "scrIntakeWizard", BadgeCount: 0 },
+                  { Key: "requests",    Label: "My Requests", IconName: "Tray",        ScreenName: "scrMyRequests",   BadgeCount: 0 },
+                  { Key: "queue",       Label: "PMO Queue",   IconName: "Search",      ScreenName: "scrPMOQueue",     BadgeCount: 0 },
+                  { Key: "itestimate",  Label: "IT Estimate", IconName: "Notebook",    ScreenName: "scrITEstimate",   BadgeCount: 0 }
+              )
+            OnNavItemSelect: |-
+              =Switch(SelectedKey,
+                  "home",        Navigate(scrHome,         ScreenTransition.Fade),
+                  "requests",    Navigate(scrMyRequests,   ScreenTransition.Fade),
+                  "queue",       Navigate(scrPMOQueue,     ScreenTransition.Fade),
+                  "requestform", Navigate(scrIntakeWizard, ScreenTransition.Fade),
+                  "itestimate",  Navigate(scrITEstimate,   ScreenTransition.Fade)
+              )
+            Width: =Parent.Width
+            Y: =56
+      - conAdminBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            Fill: =gblTheme.ColorSurfaceAlt
+            Height: =Parent.Height - cmpHeader_AdminQuestions.Height - cmpPrimaryNav_Admin.Height
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutDirection: =LayoutDirection.Horizontal
+            Width: =Parent.Width
+            Y: =cmpHeader_AdminQuestions.Height + cmpPrimaryNav_Admin.Height
+          Children:
+            - conAdminLeftPanel:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  BorderColor: =gblTheme.ColorBorder
+                  BorderThickness: =1
+                  Fill: =gblTheme.ColorSurface
+                  FillPortions: =0
+                  Height: =Parent.Height
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space2
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =260
+                  PaddingBottom: =gblTheme.Space4
+                  PaddingLeft: =gblTheme.Space4
+                  PaddingRight: =gblTheme.Space4
+                  PaddingTop: =gblTheme.Space4
+                  Width: =260
+                Children:
+                  - cmpSectionHeader_AdminCategories:
+                      Control: CanvasComponent
+                      ComponentName: cmpSectionHeader
+                      Properties:
+                        ActionLabel: =""
+                        Height: =80
+                        LayoutMinWidth: =16
+                        OnActionSelect: =
+                        Subtitle: ="Select category to edit questions"
+                        Title: ="Categories"
+                        TitleLevel: =2
+                        Width: =Parent.Width
+                  - galAdminCategories:
+                      Control: Gallery@2.15.0
+                      Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+                      Properties:
+                        AccessibleLabel: ="Project categories"
+                        Items: =gblChoices.ProjectCategory
+                        LayoutMinHeight: =48
+                        LayoutMinWidth: =16
+                        ShowScrollbar: =false
+                        TemplateFill: =Color.Transparent
+                        TemplateSize: =48
+                        Width: =Parent.Width
+                      Children:
+                        - btnAdminCategory:
+                            # ⚠️ NITRO-025 [MEDIUM] Design System: this screen exclusively uses legacy non-Modern controls (Button@0.0.45, DropDown@0.0.45, Toggle@1.1.5, Rectangle@2.3.0 — see also lines ~288, ~342, ~363, ~434 and others throughout) while other screens have migrated to the Modern control set (ModernButton, ModernDropdown, etc.). Migrate for visual/behavioral consistency.
+                            Control: Button@0.0.45
+                            Properties:
+                              AccessibleLabel: =ThisItem.Value
+                              Align: =Align.Left
+                              Appearance: ='ButtonCanvas.Appearance'.Secondary
+                              BasePaletteColor: |-
+                                =If(
+                                    Text(ThisItem.Value) = varAdminSelectedCategory,
+                                    gblTheme.ColorBrandPrimary,
+                                    Color.Transparent
+                                )
+                              BorderColor: |-
+                                =If(
+                                    Text(ThisItem.Value) = varAdminSelectedCategory,
+                                    gblTheme.ColorBrandPrimary,
+                                    gblTheme.ColorBorder
+                                )
+                              BorderRadiusBottomLeft: =gblTheme.RadiusMd
+                              BorderRadiusBottomRight: =gblTheme.RadiusMd
+                              BorderRadiusTopLeft: =gblTheme.RadiusMd
+                              BorderRadiusTopRight: =gblTheme.RadiusMd
+                              BorderThickness: |-
+                                =If(
+                                    Text(ThisItem.Value) = varAdminSelectedCategory,
+                                    2,
+                                    1
+                                )
+                              FontColor: |-
+                                =If(
+                                    Text(ThisItem.Value) = varAdminSelectedCategory,
+                                    gblTheme.ColorTextPrimary,
+                                    gblTheme.ColorTextMuted
+                                )
+                              FontSize: =gblTheme.FontSizeBody
+                              Height: =40
+                              OnSelect: |-
+                                =Set(varAdminSelectedCategory, Text(ThisItem.Value));
+                                Set(varAdminShowQuestionPanel, false);
+                                Set(varAdminSelectedQuestion, Blank());
+                                ClearCollect(
+                                    colAdminCategoryQuestions,
+                                    SortByColumns(
+                                        Filter(
+                                            'Intake Questions',
+                                            'Project Category' = ThisItem.Value,
+                                            'Is Active' = true
+                                        ),
+                                        "nod_displayorder",
+                                        SortOrder.Ascending
+                                    )
+                                )
+                              PaddingLeft: =gblTheme.Space3
+                              Text: =ThisItem.Value
+                              VerticalAlign: =VerticalAlign.Middle
+                              Width: =Parent.TemplateWidth
+            - conAdminRightPanel:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =gblTheme.ColorSurfaceAlt
+                  Height: =Parent.Height
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space4
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  PaddingBottom: =gblTheme.Space5
+                  PaddingLeft: =gblTheme.Space6
+                  PaddingRight: =gblTheme.Space6
+                  PaddingTop: =gblTheme.Space5
+                Children:
+                  - cmpSectionHeader_AdminQuestions:
+                      Control: CanvasComponent
+                      ComponentName: cmpSectionHeader
+                      Properties:
+                        ActionLabel: ="+ Add Question"
+                        Height: =70
+                        OnActionSelect: =
+                        Subtitle: ="Add, edit, reorder, or deactivate questions for this category."
+                        Title: =varAdminSelectedCategory & " Questions"
+                        TitleLevel: =2
+                        Width: =Parent.Width
+                  - galAdminQuestions:
+                      Control: Gallery@2.15.0
+                      Variant: BrowseLayout_Vertical_TwoTextOneImageVariant_ver5.0
+                      Properties:
+                        AccessibleLabel: |-
+                          ="Questions for " & varAdminSelectedCategory & ". " &
+                          Text(CountRows(colAdminCategoryQuestions)) & " items."
+                        Items: =colAdminCategoryQuestions
+                        LayoutMinHeight: =72
+                        LayoutMinWidth: =16
+                        TemplateFill: =Color.Transparent
+                        TemplatePadding: =gblTheme.Space2
+                        TemplateSize: =72
+                        Width: =Parent.Width
+                      Children:
+                        - conAdminQuestionRow:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              BorderColor: =gblTheme.ColorBorder
+                              BorderThickness: =1
+                              Fill: |-
+                                =If(
+                                    Mod(ThisItem.'Display Order', 2) = 0,
+                                    gblTheme.ColorSurfaceAlt,
+                                    gblTheme.ColorSurface
+                                )
+                              Height: =64
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              LayoutGap: =gblTheme.Space3
+                              PaddingLeft: =gblTheme.Space3
+                              PaddingRight: =gblTheme.Space3
+                              RadiusBottomLeft: =gblTheme.RadiusMd
+                              RadiusBottomRight: =gblTheme.RadiusMd
+                              RadiusTopLeft: =gblTheme.RadiusMd
+                              RadiusTopRight: =gblTheme.RadiusMd
+                              Width: =Parent.TemplateWidth
+                            Children:
+                              - lblAdminQuestionOrder:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Align: =Align.Center
+                                    Color: =gblTheme.ColorTextMuted
+                                    FontWeight: =FontWeight.Semibold
+                                    LayoutMinWidth: =32
+                                    Size: =gblTheme.FontSizeCaption
+                                    Text: =Text(ThisItem.'Display Order')
+                                    Width: =32
+                              - lblAdminQuestionLabel:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Color: =gblTheme.ColorTextPrimary
+                                    FillPortions: =1
+                                    Height: =44
+                                    LayoutMinHeight: =44
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeBody
+                                    Text: =ThisItem.'Question Label' & If(ThisItem.'Is Required', " *", "")
+                                    Wrap: =false
+                              - lblAdminQuestionType:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Align: =Align.Center
+                                    Color: =gblTheme.ColorBrandPrimary
+                                    Fill: =gblTheme.ColorInfoBg
+                                    Height: =28
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =90
+                                    RadiusBottomLeft: =gblTheme.RadiusPill
+                                    RadiusBottomRight: =gblTheme.RadiusPill
+                                    RadiusTopLeft: =gblTheme.RadiusPill
+                                    RadiusTopRight: =gblTheme.RadiusPill
+                                    Size: =gblTheme.FontSizeCaption
+                                    Text: =Text(ThisItem.'Question Type')
+                                    Width: =90
+                              - tglAdminQuestionActive:
+                                  Control: Toggle@1.1.5
+                                  Properties:
+                                    AccessibleLabel: ="Active toggle for " & ThisItem.'Question Label'
+                                    Height: =32
+                                    LayoutMinHeight: =32
+                                    LayoutMinWidth: =60
+                                    OnCheck: |-
+                                      =IfError(
+                                          Patch('Intake Questions', ThisItem, {'Is Active': true}),
+                                          Notify(
+                                              "Error activating question: " & FirstError.Message,
+                                              NotificationType.Error
+                                          )
+                                      );
+                                      ClearCollect(
+                                          colAdminCategoryQuestions,
+                                          SortByColumns(
+                                              Filter(
+                                                  'Intake Questions',
+                                                  'Project Category' = LookUp(
+                                                      gblChoices.ProjectCategory,
+                                                      Text(Value) = varAdminSelectedCategory
+                                                  ).Value,
+                                                  'Is Active' = true
+                                              ),
+                                              "nod_displayorder",
+                                              SortOrder.Ascending
+                                          )
+                                      )
+                                    OnUncheck: |-
+                                      =IfError(
+                                          Patch('Intake Questions', ThisItem, {'Is Active': false}),
+                                          Notify(
+                                              "Error deactivating question: " & FirstError.Message,
+                                              NotificationType.Error
+                                          )
+                                      );
+                                      ClearCollect(
+                                          colAdminCategoryQuestions,
+                                          SortByColumns(
+                                              Filter(
+                                                  'Intake Questions',
+                                                  'Project Category' = LookUp(
+                                                      gblChoices.ProjectCategory,
+                                                      Text(Value) = varAdminSelectedCategory
+                                                  ).Value,
+                                                  'Is Active' = true
+                                              ),
+                                              "nod_displayorder",
+                                              SortOrder.Ascending
+                                          )
+                                      )
+                                    Width: =60
+                              - btnAdminEditQuestion:
+                                  Control: Button@0.0.45
+                                  Properties:
+                                    AccessibleLabel: ="Edit " & ThisItem.'Question Label'
+                                    Appearance: ='ButtonCanvas.Appearance'.Secondary
+                                    BasePaletteColor: =gblTheme.ColorSurfaceMuted
+                                    BorderColor: =gblTheme.ColorBorder
+                                    BorderRadiusBottomLeft: =gblTheme.RadiusMd
+                                    BorderRadiusBottomRight: =gblTheme.RadiusMd
+                                    BorderRadiusTopLeft: =gblTheme.RadiusMd
+                                    BorderRadiusTopRight: =gblTheme.RadiusMd
+                                    BorderThickness: =1
+                                    FontColor: =gblTheme.ColorTextPrimary
+                                    FontSize: =gblTheme.FontSizeBody
+                                    LayoutMinWidth: =60
+                                    OnSelect: |-
+                                      =Set(varAdminEditMode, "Edit");
+                                      Set(varAdminSelectedQuestion, ThisItem);
+                                      Set(varAdminShowQuestionPanel, true)
+                                    Text: ="Edit"
+                                    Width: =60
+      - recAdminOverlay:
+          Control: Rectangle@2.3.0
+          Properties:
+            Fill: =gblTheme.ColorOverlay
+            Height: =Parent.Height - cmpHeader_AdminQuestions.Height - cmpPrimaryNav_Admin.Height
+            OnSelect: |-
+              =Set(varAdminShowQuestionPanel, false);
+              Set(varAdminSelectedQuestion, Blank())
+            Visible: =varAdminShowQuestionPanel
+            Width: =Parent.Width
+            Y: =cmpHeader_AdminQuestions.Height + cmpPrimaryNav_Admin.Height
+      - conAdminQuestionPanel:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            BorderColor: =gblTheme.ColorBorder
+            BorderThickness: =1
+            DropShadow: =DropShadow.ExtraBold
+            Fill: =gblTheme.ColorSurface
+            Height: =Parent.Height - cmpHeader_AdminQuestions.Height - cmpPrimaryNav_Admin.Height
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutDirection: =LayoutDirection.Vertical
+            LayoutGap: =gblTheme.Space4
+            LayoutOverflowY: =LayoutOverflow.Scroll
+            PaddingBottom: =gblTheme.Space5
+            PaddingLeft: =gblTheme.Space5
+            PaddingRight: =gblTheme.Space5
+            PaddingTop: =gblTheme.Space5
+            Visible: =varAdminShowQuestionPanel
+            Width: =Parent.Width * 0.4
+            X: =If(varAdminShowQuestionPanel, Parent.Width * 0.6, Parent.Width)
+            Y: =cmpHeader_AdminQuestions.Height + cmpPrimaryNav_Admin.Height
+          Children:
+            - conPanelHeader:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  Height: =48
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =gblTheme.Space2
+                  LayoutMinHeight: =48
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+                Children:
+                  - lblPanelTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =gblTheme.ColorTextPrimary
+                        FillPortions: =1
+                        FontWeight: =FontWeight.Semibold
+                        Height: =40
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeH2
+                        Text: =If(varAdminEditMode = "New", "Add Question", "Edit Question")
+                  - icoClosePanel:
+                      Control: ModernIcon@1.1.0
+                      Properties:
+                        AccessibleLabel: ="Close panel"
+                        Icon: ="Dismiss"
+                        IconColor: =gblTheme.ColorTextSecondary
+                        OnSelect: |-
+                          =Set(varAdminShowQuestionPanel, false);
+                          Set(varAdminSelectedQuestion, Blank())
+                        PaddingBottom: =4
+                        PaddingLeft: =4
+                        PaddingRight: =4
+                        PaddingTop: =4
+            - recPanelDivider:
+                Control: Rectangle@2.3.0
+                Properties:
+                  Fill: =gblTheme.ColorBorder
+                  Height: =1
+                  LayoutMinHeight: =1
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+            - conPanelQLabel:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space2
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+                Children:
+                  - lblPanelQLabel:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        Height: =20
+                        LayoutMinHeight: =20
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeBody
+                        Text: ="Question Label *"
+                        Width: =Parent.Width
+                  - txtAdminQLabel:
+                      Control: ModernTextInput@1.1.0
+                      Properties:
+                        AccessibleLabel: ="Question label, required"
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Color: =gblTheme.ColorTextPrimary
+                        Default: =Coalesce(varAdminSelectedQuestion.'Question Label', "")
+                        Fill: =gblTheme.ColorSurface
+                        Height: =44
+                        LayoutMinHeight: =44
+                        LayoutMinWidth: =16
+                        PaddingLeft: =gblTheme.Space3
+                        Placeholder: ="e.g. Which ERP will this connect to?"
+                        RadiusBottomLeft: =gblTheme.RadiusMd
+                        RadiusBottomRight: =gblTheme.RadiusMd
+                        RadiusTopLeft: =gblTheme.RadiusMd
+                        RadiusTopRight: =gblTheme.RadiusMd
+                        Size: =gblTheme.FontSizeBody
+                        Width: =Parent.Width
+            - conPanelQType:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space2
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+                Children:
+                  - lblPanelQType:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        Height: =20
+                        LayoutMinHeight: =20
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeBody
+                        Text: ="Question Type *"
+                        Width: =Parent.Width
+                  - ddAdminQType:
+                      Control: DropDown@0.0.45
+                      Properties:
+                        AccessibleLabel: ="Question type, required"
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Fill: =gblTheme.ColorSurface
+                        Height: =44
+                        Items: =Choices('Question Type (Intake Questions)')
+                        LayoutMinHeight: =44
+                        LayoutMinWidth: =16
+                        Width: =Parent.Width
+            - conPanelQOrder:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space2
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+                Children:
+                  - lblPanelQOrder:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        Height: =20
+                        LayoutMinHeight: =20
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeBody
+                        Text: ="Display Order *"
+                        Width: =Parent.Width
+                  - txtAdminQOrder:
+                      Control: ModernTextInput@1.1.0
+                      Properties:
+                        AccessibleLabel: ="Display order, required, number"
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Color: =gblTheme.ColorTextPrimary
+                        Default: |-
+                          =If(
+                              varAdminEditMode = "New",
+                              Text(CountRows(colAdminCategoryQuestions) + 1),
+                              Text(varAdminSelectedQuestion.'Display Order')
+                          )
+                        Fill: =gblTheme.ColorSurface
+                        Height: =44
+                        LayoutMinHeight: =44
+                        LayoutMinWidth: =16
+                        PaddingLeft: =gblTheme.Space3
+                        Placeholder: ="e.g. 1"
+                        RadiusBottomLeft: =gblTheme.RadiusMd
+                        RadiusBottomRight: =gblTheme.RadiusMd
+                        RadiusTopLeft: =gblTheme.RadiusMd
+                        RadiusTopRight: =gblTheme.RadiusMd
+                        Size: =gblTheme.FontSizeBody
+                        Width: =Parent.Width
+            - conPanelQHint:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space2
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+                Children:
+                  - lblPanelQHint:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        Height: =20
+                        LayoutMinHeight: =20
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeBody
+                        Text: ="Hint Text (optional)"
+                        Width: =Parent.Width
+                  - txtAdminQHint:
+                      Control: ModernTextInput@1.1.0
+                      Properties:
+                        AccessibleLabel: ="Hint text, optional"
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Color: =gblTheme.ColorTextPrimary
+                        Default: =Coalesce(varAdminSelectedQuestion.'Hint Text', "")
+                        Fill: =gblTheme.ColorSurface
+                        Height: =44
+                        LayoutMinHeight: =44
+                        LayoutMinWidth: =16
+                        PaddingLeft: =gblTheme.Space3
+                        Placeholder: ="e.g. Select the ERP system this connects to..."
+                        RadiusBottomLeft: =gblTheme.RadiusMd
+                        RadiusBottomRight: =gblTheme.RadiusMd
+                        RadiusTopLeft: =gblTheme.RadiusMd
+                        RadiusTopRight: =gblTheme.RadiusMd
+                        Size: =gblTheme.FontSizeBody
+                        Width: =Parent.Width
+            - conPanelQSection:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space1
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+                Children:
+                  - lblPanelQSection:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        Height: =20
+                        LayoutMinHeight: =20
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeBody
+                        Text: ="Section Label (optional)"
+                        Width: =Parent.Width
+                  - lblPanelQSectionHint:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =gblTheme.ColorTextMuted
+                        Height: =20
+                        LayoutMinHeight: =20
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeCaption
+                        Text: ="Adds a grouping header above this question in the wizard"
+                        Width: =Parent.Width
+                  - txtAdminQSection:
+                      Control: ModernTextInput@1.1.0
+                      Properties:
+                        AccessibleLabel: ="Section label, optional"
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Color: =gblTheme.ColorTextPrimary
+                        Default: =Coalesce(varAdminSelectedQuestion.'Section Label', "")
+                        Fill: =gblTheme.ColorSurface
+                        Height: =44
+                        LayoutMinHeight: =44
+                        LayoutMinWidth: =16
+                        PaddingLeft: =gblTheme.Space3
+                        Placeholder: ="e.g. ERP Details"
+                        RadiusBottomLeft: =gblTheme.RadiusMd
+                        RadiusBottomRight: =gblTheme.RadiusMd
+                        RadiusTopLeft: =gblTheme.RadiusMd
+                        RadiusTopRight: =gblTheme.RadiusMd
+                        Size: =gblTheme.FontSizeBody
+                        Width: =Parent.Width
+            - conPanelQRequired:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  Height: =44
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =gblTheme.Space4
+                  LayoutMinHeight: =44
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+                Children:
+                  - lblPanelQRequired:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =gblTheme.ColorTextPrimary
+                        FillPortions: =1
+                        FontWeight: =FontWeight.Semibold
+                        Height: =44
+                        LayoutMinHeight: =44
+                        LayoutMinWidth: =16
+                        Size: =gblTheme.FontSizeBody
+                        Text: ="Is Required?"
+                  - tglAdminQRequired:
+                      Control: Toggle@1.1.5
+                      Properties:
+                        AccessibleLabel: ="Mark this question required"
+                        Height: =32
+                        LayoutMinHeight: =32
+                        LayoutMinWidth: =80
+                        Width: =80
+            - conPanelOptions:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =gblTheme.Space3
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  Visible: =Text(ddAdminQType.Selected.Value) = "Dropdown"
+                  Width: =Parent.Width
+                Children:
+                  - recOptionsDivider:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        Fill: =gblTheme.ColorBorder
+                        Height: =1
+                        LayoutMinHeight: =1
+                        LayoutMinWidth: =16
+                        Width: =Parent.Width
+                  - cmpSectionHeader_Options:
+                      Control: CanvasComponent
+                      ComponentName: cmpSectionHeader
+                      Properties:
+                        ActionLabel: =""
+                        OnActionSelect: =
+                        Subtitle: ="Define the selectable options for this question"
+                        Title: ="Dropdown Options"
+                        TitleLevel: =3
+                        Width: =Parent.Width
+                  - galAdminOptions:
+                      Control: Gallery@2.15.0
+                      Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+                      Properties:
+                        AccessibleLabel: ="Existing dropdown options"
+                        FillPortions: =0
+                        Height: =Min(CountRows(galAdminOptions.AllItems) * 44, 220)
+                        Items: |-
+                          =If(
+                              IsBlank(varAdminSelectedQuestion) || varAdminEditMode = "New",
+                              Filter('Intake Question Options', 'Is Active' = true && 1 = 0),
+                              Filter(
+                                  colQuestionOptions,
+                                  Question.'Intake Question' = varAdminSelectedQuestion.'Intake Question',
+                                  'Is Active' = true
+                              )
+                          )
+                        LayoutMinHeight: =44
+                        LayoutMinWidth: =16
+                        TemplateFill: =Color.Transparent
+                        TemplateSize: =44
+                        Width: =Parent.Width
+                      Children:
+                        - conOptionRow:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              Fill: =Color.Transparent
+                              Height: =40
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              LayoutGap: =gblTheme.Space2
+                              Width: =Parent.TemplateWidth
+                            Children:
+                              - lblOptionLabel:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Color: =gblTheme.ColorTextPrimary
+                                    FillPortions: =1
+                                    Height: =40
+                                    LayoutMinHeight: =40
+                                    LayoutMinWidth: =16
+                                    Size: =gblTheme.FontSizeBody
+                                    Text: =ThisItem.'Option Label'
+                              - lblOptionValue:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Color: =gblTheme.ColorTextMuted
+                                    Height: =40
+                                    LayoutMinHeight: =40
+                                    LayoutMinWidth: =80
+                                    Size: =gblTheme.FontSizeCaption
+                                    Text: =ThisItem.'Option Value'
+                                    Width: =80
+                              - tglOptionActive:
+                                  Control: Toggle@1.1.5
+                                  Properties:
+                                    AccessibleLabel: ="Active toggle for option " & ThisItem.'Option Label'
+                                    Height: =32
+                                    LayoutMinHeight: =32
+                                    LayoutMinWidth: =60
+                                    OnCheck: |-
+                                      =IfError(
+                                          Patch(
+                                              'Intake Question Options',
+                                              ThisItem,
+                                              {'Is Active': true}
+                                          ),
+                                          Notify(
+                                              "Error: " & FirstError.Message,
+                                              NotificationType.Error
+                                          )
+                                      )
+                                    OnUncheck: |-
+                                      =IfError(
+                                          Patch(
+                                              'Intake Question Options',
+                                              ThisItem,
+                                              {'Is Active': false}
+                                          ),
+                                          Notify(
+                                              "Error: " & FirstError.Message,
+                                              NotificationType.Error
+                                          )
+                                      )
+                                    Width: =60
+                  - conAddOption:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        Fill: =Color.Transparent
+                        FillPortions: =0
+                        Height: =44
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        LayoutGap: =gblTheme.Space2
+                        LayoutMinHeight: =44
+                        LayoutMinWidth: =16
+                        Width: =Parent.Width
+                      Children:
+                        - txtNewOptionLabel:
+                            Control: ModernTextInput@1.1.0
+                            Properties:
+                              AccessibleLabel: ="New option label"
+                              BorderColor: =gblTheme.ColorBorder
+                              BorderThickness: =1
+                              Color: =gblTheme.ColorTextPrimary
+                              Fill: =gblTheme.ColorSurface
+                              Height: =40
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =16
+                              PaddingLeft: =gblTheme.Space3
+                              Placeholder: ="Option Label"
+                              RadiusBottomLeft: =gblTheme.RadiusMd
+                              RadiusBottomRight: =gblTheme.RadiusMd
+                              RadiusTopLeft: =gblTheme.RadiusMd
+                              RadiusTopRight: =gblTheme.RadiusMd
+                              Size: =gblTheme.FontSizeBody
+                              Width: =Parent.Width * 0.45
+                        - txtNewOptionValue:
+                            Control: ModernTextInput@1.1.0
+                            Properties:
+                              AccessibleLabel: ="New option stored value"
+                              BorderColor: =gblTheme.ColorBorder
+                              BorderThickness: =1
+                              Color: =gblTheme.ColorTextPrimary
+                              Fill: =gblTheme.ColorSurface
+                              Height: =40
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =16
+                              PaddingLeft: =gblTheme.Space3
+                              Placeholder: ="Stored Value"
+                              RadiusBottomLeft: =gblTheme.RadiusMd
+                              RadiusBottomRight: =gblTheme.RadiusMd
+                              RadiusTopLeft: =gblTheme.RadiusMd
+                              RadiusTopRight: =gblTheme.RadiusMd
+                              Size: =gblTheme.FontSizeBody
+                              Width: =Parent.Width * 0.35
+                        - btnAddOption:
+                            Control: Button@0.0.45
+                            Properties:
+                              AccessibleLabel: ="Add option to dropdown"
+                              BasePaletteColor: =gblTheme.ColorBrandPrimary
+                              BorderRadiusBottomLeft: =gblTheme.RadiusMd
+                              BorderRadiusBottomRight: =gblTheme.RadiusMd
+                              BorderRadiusTopLeft: =gblTheme.RadiusMd
+                              BorderRadiusTopRight: =gblTheme.RadiusMd
+                              DisplayMode: |-
+                                =If(
+                                    IsBlank(varAdminSelectedQuestion) || varAdminEditMode = "New",
+                                    DisplayMode.Disabled,
+                                    DisplayMode.Edit
+                                )
+                              FontColor: =gblTheme.ColorTextInverse
+                              FontSize: =gblTheme.FontSizeBody
+                              Height: =40
+                              Icon: ="Add"
+                              IconStyle: ="Filled"
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =16
+                              OnSelect: |-
+                                =If(
+                                    IsBlank(txtNewOptionLabel.Text) || IsBlank(txtNewOptionValue.Text),
+                                    Notify(
+                                        "Please enter both a label and a stored value.",
+                                        NotificationType.Error
+                                    ),
+                                    IfError(
+                                        Patch(
+                                            'Intake Question Options',
+                                            Defaults('Intake Question Options'),
+                                            {
+                                                'Option Label':  txtNewOptionLabel.Text,
+                                                'Option Value':  txtNewOptionValue.Text,
+                                                'Display Order': CountRows(
+                                                                     Filter(
+                                                                         colQuestionOptions,
+                                                                         Question.'Intake Question'
+                                                                             = varAdminSelectedQuestion.'Intake Question'
+                                                                     )
+                                                                 ) + 1,
+                                                'Is Active':     true,
+                                                Question:      varAdminSelectedQuestion
+                                            }
+                                        ),
+                                        Notify(
+                                            "Error adding option: " & FirstError.Message,
+                                            NotificationType.Error
+                                        )
+                                    );
+                                    Reset(txtNewOptionLabel);
+                                    Reset(txtNewOptionValue);
+                                    ClearCollect(
+                                        colQuestionOptions,
+                                        Filter('Intake Question Options', 'Is Active' = true)
+                                    )
+                                )
+                              Text: ="Add"
+                              Width: =Parent.Width * 0.15
+            - recPanelFooterDivider:
+                Control: Rectangle@2.3.0
+                Properties:
+                  Fill: =gblTheme.ColorBorder
+                  Height: =1
+                  LayoutMinHeight: =1
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+            - conPanelButtons:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =Color.Transparent
+                  FillPortions: =0
+                  Height: =48
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =gblTheme.Space3
+                  LayoutJustifyContent: =LayoutJustifyContent.End
+                  LayoutMinHeight: =48
+                  LayoutMinWidth: =16
+                  Width: =Parent.Width
+                Children:
+                  - btnAdminCancelQuestion:
+                      Control: Button@0.0.45
+                      Properties:
+                        AccessibleLabel: ="Cancel"
+                        Appearance: ='ButtonCanvas.Appearance'.Secondary
+                        BasePaletteColor: =gblTheme.ColorSurfaceMuted
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderRadiusBottomLeft: =gblTheme.RadiusMd
+                        BorderRadiusBottomRight: =gblTheme.RadiusMd
+                        BorderRadiusTopLeft: =gblTheme.RadiusMd
+                        BorderRadiusTopRight: =gblTheme.RadiusMd
+                        BorderThickness: =1
+                        FontColor: =gblTheme.ColorTextPrimary
+                        FontSize: =gblTheme.FontSizeBody
+                        Height: =40
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =100
+                        OnSelect: |-
+                          =Set(varAdminShowQuestionPanel, false);
+                          Set(varAdminSelectedQuestion, Blank())
+                        Text: ="Cancel"
+                        Width: =100
+                  - btnAdminSaveQuestion:
+                      Control: Button@0.0.45
+                      Properties:
+                        AccessibleLabel: ="Save question"
+                        BasePaletteColor: =gblTheme.ColorBrandPrimary
+                        BorderRadiusBottomLeft: =gblTheme.RadiusMd
+                        BorderRadiusBottomRight: =gblTheme.RadiusMd
+                        BorderRadiusTopLeft: =gblTheme.RadiusMd
+                        BorderRadiusTopRight: =gblTheme.RadiusMd
+                        BorderThickness: =0
+                        FontColor: =gblTheme.ColorTextInverse
+                        FontSize: =gblTheme.FontSizeBody
+                        Height: =40
+                        Icon: ="Save"
+                        IconStyle: ="Filled"
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =140
+                        OnSelect: |-
+                          =If(
+                              IsBlank(txtAdminQLabel.Text)
+                                  || IsBlank(ddAdminQType.Selected)
+                                  || IsBlank(txtAdminQOrder.Text),
+                              Notify(
+                                  "Please complete all required fields marked with *",
+                                  NotificationType.Error
+                              ),
+                              With(
+                                  {
+                                      _categoryValue: LookUp(
+                                          gblChoices.ProjectCategory,
+                                          Text(Value) = varAdminSelectedCategory
+                                      ).Value
+                                  },
+                                  With(
+                                      {
+                                          _savedRec: IfError(
+                                              If(
+                                                  varAdminEditMode = "New",
+                                                  Patch(
+                                                      'Intake Questions',
+                                                      Defaults('Intake Questions'),
+                                                      {
+                                                          'Question Label':   txtAdminQLabel.Text,
+                                                          'Question Type': ddAdminQType.Selected.Value,
+                                                          'Project Category': _categoryValue,
+                                                          'Display Order':    Value(txtAdminQOrder.Text),
+                                                          'Hint Text':        txtAdminQHint.Text,
+                                                          'Section Label':    txtAdminQSection.Text,
+                                                          'Is Required':      tglAdminQRequired.Checked,
+                                                          'Is Active':        true
+                                                      }
+                                                  ),
+                                                  Patch(
+                                                      'Intake Questions',
+                                                      varAdminSelectedQuestion,
+                                                      {
+                                                          'Question Label':  txtAdminQLabel.Text,
+                                                          'Question Type':   ddAdminQType.Selected.Value,
+                                                          'Display Order':   Value(txtAdminQOrder.Text),
+                                                          'Hint Text':       txtAdminQHint.Text,
+                                                          'Section Label':   txtAdminQSection.Text,
+                                                          'Is Required':     tglAdminQRequired.Checked
+                                                      }
+                                                  )
+                                              ),
+                                              Notify(
+                                                  "Error saving question: " & FirstError.Message,
+                                                  NotificationType.Error
+                                              );
+                                              Blank()
+                                          )
+                                      },
+                                      If(
+                                          !IsBlank(_savedRec),
+                                          Notify(
+                                              "Question saved successfully.",
+                                              NotificationType.Success
+                                          );
+                                          Set(varAdminShowQuestionPanel, false);
+                                          Set(varAdminSelectedQuestion, Blank());
+
+                                          // Reload Active questions (matches app load pattern)
+                                          ClearCollect(
+                                              colIntakeQuestions,
+                                              Filter('Intake Questions', 'Is Active' = true)
+                                          );
+
+                                          ClearCollect(
+                                              colAdminCategoryQuestions,
+                                              SortByColumns(
+                                                  Filter(
+                                                      'Intake Questions',
+                                                      'Project Category' = _categoryValue,
+                                                      'Is Active' = true
+                                                  ),
+                                                  "nod_displayorder",
+                                                  SortOrder.Ascending
+                                              )
+                                          )
+                                      )
+                                  )
+                              )
+                          )
+                        Text: ="Save Question"
+                        Width: =140
+      - tmrAdminRedirect:
+          Control: Timer@2.1.0
+          Properties:
+            AutoStart: =true
+            Duration: =500
+            OnTimerEnd: |-
+              =If(varRedirectToHome,
+                              Notify("You don't have access to this screen.", NotificationType.Error);
+                              Navigate(scrHome, ScreenTransition.None)
+                          )
+            Start: =varRedirectToHome
+            Visible: =false
+            X: =40
+            Y: =40

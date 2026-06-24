@@ -1,0 +1,415 @@
+Screens:
+  scrHome:
+    Properties:
+      Fill: =gblTheme.ColorSurfaceAlt
+      OnVisible: |-
+        =If(
+                    IsEmpty(colHomeRequests) Or varHomeDataStale,
+                    ClearCollect(
+                        colHomeRequests,
+                        If(
+                            varIsAdmin Or varIsPMO,
+                            FirstN(
+                                SortByColumns(
+                                    Filter('Project Intake Requests',
+                                        'Project Intake Status' <> nod_pr_status_choice.Draft
+                                    ),
+                                    "modifiedon", SortOrder.Descending
+                                ),
+                                50
+                            ),
+                            Filter('Project Intake Requests',
+                                nod_SubmittedBy = varAppUser.'Email Address (emailaddress)'
+                            )
+                        )
+                    );
+                    Set(varHomeDataStale, false)
+                );
+                Set(varHomeRecentRequests,
+                    FirstN(
+                        SortByColumns(colHomeRequests, "modifiedon", SortOrder.Descending),
+                        5
+                    )
+                );
+                Set(varHomeCounts, {
+                    DraftCount: CountRows(Filter(colHomeRequests, 'Project Intake Status' = nod_pr_status_choice.Draft)),
+                    OpenCount:  CountRows(Filter(colHomeRequests, 'Project Intake Status' = nod_pr_status_choice.'IT Estimate')),
+                    PMOCount:   CountRows(Filter(colHomeRequests, 'Project Intake Status' = nod_pr_status_choice.'PMO Review'))
+                });
+                Set(varSLACutoff, DateAdd(Now(), -48, TimeUnit.Hours));
+                Set(varHomePMOSLABreach,
+                    CountRows(Filter('Project Intake Requests', 'Project Intake Status' = nod_pr_status_choice.'IT Estimate', 'Created On' < varSLACutoff))
+                )
+    Children:
+      - cntHomeBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            Height: =Parent.Height - cmpHeader_1.Height - cmpPrimaryNav_4.Height
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutDirection: =LayoutDirection.Vertical
+            LayoutGap: =gblTheme.Space4
+            PaddingBottom: =gblTheme.Space5
+            PaddingLeft: =Switch(gblBreakpoint, "sm", gblTheme.Space3, "md", gblTheme.Space4, gblTheme.Space6)
+            PaddingRight: =Switch(gblBreakpoint, "sm", gblTheme.Space3, "md", gblTheme.Space4, gblTheme.Space6)
+            PaddingTop: =gblTheme.Space5
+            Width: =Parent.Width
+            Y: =cmpHeader_1.Height + cmpPrimaryNav_4.Height
+          Children:
+            - cntPageTitle:
+                Control: GroupContainer@1.5.0
+                Variant: ManualLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  Height: =
+                  LayoutMaxHeight: =100
+                  LayoutMinHeight: =50
+                  LayoutMinWidth: =50
+                Children:
+                  - lblHomePageTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        AutoHeight: =true
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        Size: =gblTheme.FontSizeH1
+                        Text: ="Welcome, " & Coalesce(varAppUser.Name, varDisplayName, "User")
+                        VerticalAlign: =VerticalAlign.Top
+                        Width: =500
+                        X: =40
+                  # 🟠 NITRO-010 [HIGH] Role-Based Access: role-switcher dropdown left on the production Home screen; remove from production build or gate Visible behind a non-production flag.
+                  - drpQuickRole:
+                      Control: ModernDropdown@1.0.1
+                      Properties:
+                        ItemDisplayText: =ThisItem.Value
+                        Items: |-
+                          =[
+                              "Admin",
+                              "PMO",
+                              "IT Estimate Manager",
+                              "Approver",
+                              "Unauthorized"
+                          ]
+                        X: =349
+                        Y: =9
+            - cntHeroRow:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  Height: =
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =If(gblBreakpoint="sm", LayoutDirection.Vertical, LayoutDirection.Horizontal)
+                  LayoutGap: =gblTheme.Space4
+                  LayoutJustifyContent: =LayoutJustifyContent.Center
+                  LayoutMaxHeight: =400
+                  LayoutMinHeight: =200
+                  LayoutMinWidth: =16
+                  PaddingBottom: =gblTheme.Space2
+                  PaddingLeft: =gblTheme.Space2
+                  PaddingRight: =gblTheme.Space2
+                  PaddingTop: =gblTheme.Space2
+                Children:
+                  - cntHeroSubmit:
+                      Control: GroupContainer@1.5.0
+                      Variant: ManualLayout
+                      Properties:
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Fill: =gblTheme.ColorSurface
+                        Height: =
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        RadiusBottomLeft: =gblTheme.RadiusMd
+                        RadiusBottomRight: =gblTheme.RadiusMd
+                        RadiusTopLeft: =gblTheme.RadiusMd
+                        RadiusTopRight: =gblTheme.RadiusMd
+                        Width: =
+                      Children:
+                        - txtSubmitTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AutoHeight: =true
+                              Color: =gblTheme.ColorTextPrimary
+                              FontWeight: =FontWeight.Semibold
+                              Size: =gblTheme.FontSizeH2
+                              Text: ="Submit a new request"
+                              Width: =200
+                              X: =109
+                              Y: =92
+                        - icoSubmit:
+                            Control: Icon@0.0.7
+                            Properties:
+                              Height: =48
+                              Icon: ="DocumentAdd"
+                              IconColor: =gblTheme.ColorBrandAccent
+                              X: =193
+                              Y: =44
+                        - btnSubmitOverlay:
+                            Control: Button@0.0.45
+                            Properties:
+                              AccessibleLabel: ="Submit a new request"
+                              Align: =Align.Center
+                              Appearance: ='ButtonCanvas.Appearance'.Transparent
+                              Height: =184
+                              OnSelect: |-
+                                =Set(varWizardMode, "New");
+                                Set(varWizardStep, 0);
+                                Set(varProjectRec, Blank());           // ← actual Blank, not Defaults()
+                                Navigate(scrIntakeWizard, ScreenTransition.Fade)
+                              Text: =""
+                              Width: =418
+                  - cntMyRequests:
+                      Control: GroupContainer@1.5.0
+                      Variant: ManualLayout
+                      Properties:
+                        BorderColor: =gblTheme.ColorBorder
+                        BorderThickness: =1
+                        Fill: =gblTheme.ColorSurface
+                        Height: =
+                        LayoutMinHeight: =180
+                        LayoutMinWidth: =16
+                        RadiusBottomLeft: =gblTheme.RadiusMd
+                        RadiusBottomRight: =gblTheme.RadiusMd
+                        RadiusTopLeft: =gblTheme.RadiusMd
+                        RadiusTopRight: =gblTheme.RadiusMd
+                        Width: =
+                      Children:
+                        - txtMyRequests:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              AutoHeight: =true
+                              Color: =gblTheme.ColorTextPrimary
+                              FontWeight: =FontWeight.Semibold
+                              Size: =gblTheme.FontSizeH2
+                              Text: ="My Requests"
+                              Width: =114
+                              X: =152
+                              Y: =92
+                        - icomyRequest:
+                            Control: Icon@0.0.7
+                            Properties:
+                              Height: =48
+                              Icon: ="Document"
+                              IconColor: =gblTheme.ColorBrandAccent
+                              X: =193
+                              Y: =44
+                        - badgeOpen:
+                            Control: Badge@0.0.24
+                            Properties:
+                              Content: =Text(varHomeCounts.OpenCount) & " open"
+                              FontSize: =
+                              Shape: ='BadgeCanvas.Shape'.Rounded
+                              ThemeColor: ='BadgeCanvas.ThemeColor'.Informative
+                              Visible: =varHomeCounts.OpenCount > 0
+                              Width: =50
+                              X: =350
+                              Y: =12
+                        - btnMyRequests:
+                            Control: Button@0.0.45
+                            Properties:
+                              AccessibleLabel: ="View my requests"
+                              Appearance: ='ButtonCanvas.Appearance'.Transparent
+                              Height: =Parent.Height
+                              OnSelect: =Navigate(scrMyRequests, ScreenTransition.Fade)
+                              Text: =""
+                              Width: =Parent.Width
+                  - cntPMORow:
+                      Control: GroupContainer@1.5.0
+                      Variant: ManualLayout
+                      Properties:
+                        Fill: =gblTheme.ColorSurface
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        Visible: =varIsAdmin Or varIsPMO Or varIsITEstimateManager
+                      Children:
+                        - txtPMOTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Color: =gblTheme.ColorTextPrimary
+                              FontWeight: =FontWeight.Semibold
+                              Size: =gblTheme.FontSizeH3
+                              Text: ="PMO Triage Queue"
+                              X: =106
+                              Y: =56
+                        - txtPMOCount:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Color: =gblTheme.ColorTextSecondary
+                              FontWeight: =FontWeight.Semibold
+                              Size: =gblTheme.FontSizeBody
+                              Text: =CountRows(colPMOTriageQueue) & " requests awaiting triage"
+                              Width: =200
+                              X: =93
+                              Y: =95
+                        - badgeSLABreach:
+                            Control: Badge@0.0.24
+                            Properties:
+                              Appearance: ='BadgeCanvas.Appearance'.Filled
+                              Content: =Text(varHomePMOSLABreach) & " breaching 48-hour SLA"
+                              Height: =34
+                              Shape: ='BadgeCanvas.Shape'.Rounded
+                              ThemeColor: ='BadgeCanvas.ThemeColor'.Danger
+                              Visible: =varHomePMOSLABreach > 0
+                              Width: =172
+                              X: =220
+                              Y: =6
+                        - btnGoPMO:
+                            Control: Button@0.0.45
+                            Properties:
+                              Height: =36
+                              Icon: ="ArrowRight"
+                              Layout: ='ButtonCanvas.Layout'.IconAfter
+                              OnSelect: =Navigate(scrPMOQueue, ScreenTransition.Fade)
+                              Text: ="Open triage queue"
+                              Width: =180
+                              X: =93
+                              Y: =142
+                  - cntNotPMORow:
+                      Control: GroupContainer@1.5.0
+                      Variant: ManualLayout
+                      Properties:
+                        Fill: =gblTheme.ColorSurface
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        Visible: =Not(varIsAdmin) And Not(varIsPMO) And Not(varIsITEstimateManager)
+                      Children:
+                        - txtPMOTitle_1:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Color: =gblTheme.ColorTextPrimary
+                              FontWeight: =FontWeight.Semibold
+                              Size: =gblTheme.FontSizeH3
+                              Text: ="Coming Soon"
+                              X: =147
+                              Y: =75
+            - cmpEmptyState_1:
+                Control: CanvasComponent
+                ComponentName: cmpEmptyState
+                Properties:
+                  Description: ="Submit your first request to see activity."
+                  Height: =329
+                  IconName: ="DocumentSearch"
+                  OnPrimarySelect: |-
+                    =Set(varWizardMode, "New");
+                      Set(varWizardStep, 0);
+                      Set(varProjectRec, Blank());
+                      Navigate(scrIntakeWizard, ScreenTransition.Fade)
+                  OnSecondarySelect: =
+                  PrimaryActionLabel: ="New Request"
+                  SecondaryActionLabel: =""
+                  Title: ="Nothing here yet"
+                  Visible: =IsEmpty(varHomeRecentRequests)
+                  Width: =1318
+                  Y: =271
+            - cmpSectionHeader_1:
+                Control: CanvasComponent
+                ComponentName: cmpSectionHeader
+                Properties:
+                  ActionLabel: =
+                  Height: =56
+                  OnActionSelect: =
+                  Subtitle: ="Last 5 requests"
+                  Title: ="Recent activity"
+                  TitleLevel: =2
+                  Visible: =!IsEmpty(varHomeRecentRequests)
+                  Width: =600
+            - galHomeRecent:
+                Control: Gallery@2.15.0
+                Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+                Properties:
+                  AlignInContainer: =AlignInContainer.SetByContainer
+                  Height: =
+                  Items: =varHomeRecentRequests
+                  LayoutMinWidth: =400
+                  TemplateSize: =72
+                  Visible: =!IsEmpty(varHomeRecentRequests)
+                Children:
+                  - txtRecentMeta:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        AutoHeight: =true
+                        Color: =gblTheme.ColorTextSecondary
+                        OnSelect: =Select(Parent)
+                        Size: =gblTheme.FontSizeSmall
+                        Text: =ThisItem.'Project Category' & " · " & Text(ThisItem.'Modified On', DateTimeFormat.ShortDate)
+                        Width: =Parent.Width - 120
+                        X: =8
+                        Y: =40
+                  - txtRecentTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        AutoHeight: =true
+                        Color: =gblTheme.ColorTextPrimary
+                        FontWeight: =FontWeight.Semibold
+                        Height: =
+                        OnSelect: =Select(Parent)
+                        Size: =gblTheme.FontSizeH3
+                        Text: =ThisItem.'Request Title'
+                        Width: =Parent.Width - 120
+                        X: =8
+                        Y: =4
+                  - badgeRecentStatus:
+                      Control: Badge@0.0.24
+                      Properties:
+                        Appearance: ='BadgeCanvas.Appearance'.Ghost
+                        BasePaletteColor: =Color.Transparent
+                        Content: =ThisItem.'Project Intake Status'
+                        Shape: ='BadgeCanvas.Shape'.Rounded
+                        ThemeColor: |-
+                          =Switch(ThisItem.'Project Intake Status',
+                              nod_pr_status_choice.Draft,          'BadgeCanvas.ThemeColor'.Subtle,
+                              nod_pr_status_choice.Submitted,      'BadgeCanvas.ThemeColor'.Brand,
+                              nod_pr_status_choice.'PMO Review',   'BadgeCanvas.ThemeColor'.Warning,
+                              nod_pr_status_choice.'IT Estimate',  'BadgeCanvas.ThemeColor'.Informative,
+                              nod_pr_status_choice.Approved,       'BadgeCanvas.ThemeColor'.Success,
+                              nod_pr_status_choice.Rejected,       'BadgeCanvas.ThemeColor'.Danger,
+                              'BadgeCanvas.ThemeColor'.Subtle
+                          )
+                        Width: =100
+                        X: =Parent.Width - 108
+                        Y: =24
+                  - btnRecentOverlay:
+                      Control: Button@0.0.45
+                      Properties:
+                        AccessibleLabel: |-
+                          ="Open request: " & ThisItem.'Request Title'
+                        Appearance: ='ButtonCanvas.Appearance'.Transparent
+                        Height: =72
+                        # 🟠 NITRO-011 [HIGH] Functionality: navigates to scrReview without setting varProjectRec/varSelectedRecord — scrReview opens against stale/wrong context. Set the record (via live LookUp on GUID) before navigating.
+                        OnSelect: =Navigate(scrReview, ScreenTransition.Fade)
+                        Text: =""
+                        Width: =Parent.Width
+      - cmpHeader_1:
+          Control: CanvasComponent
+          ComponentName: cmpHeader
+          Properties:
+            EnvironmentLabel: =""
+            Fill: =gblTheme.ColorBrandPrimary
+            Height: =56
+            OnBackSelect: =
+            ShowBackButton: =false
+            Title: ="Project Request Portal"
+            Width: =Parent.Width
+      - cmpPrimaryNav_4:
+          Control: CanvasComponent
+          ComponentName: cmpPrimaryNav
+          Properties:
+            CurrentScreen: ="home"
+            Fill: =
+            Height: =48
+            NavItems: =colNavItems
+            OnNavItemSelect: |-
+              =Switch(SelectedKey,
+                                "home",       Navigate(scrHome, ScreenTransition.Fade),
+                                "requestform",
+                                    Set(varWizardMode, "New");
+                                    Set(varWizardStep, 0);
+                                    Set(varProjectRec, Blank());
+                                    Navigate(scrIntakeWizard, ScreenTransition.Fade),
+                                "requests",   Navigate(scrMyRequests, ScreenTransition.Fade),
+                                "queue",      Navigate(scrPMOQueue, ScreenTransition.Fade),
+                                "itestimate", Navigate(scrITEstimate, ScreenTransition.Fade)
+                            )
+            Width: =Parent.Width
+            Y: =cmpHeader_1.Y + cmpHeader_1.Height
