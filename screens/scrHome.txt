@@ -38,12 +38,7 @@ Screens:
                 });
                 Set(varSLACutoff, DateAdd(Now(), -48, TimeUnit.Hours));
                 Set(varHomePMOSLABreach,
-                    CountRows(
-                        Filter(colHomeRequests,
-                            'Project Intake Status' = nod_pr_status_choice.'IT Estimate',
-                            'Created On' < varSLACutoff
-                        )
-                    )
+                    CountRows(Filter('Project Intake Requests', 'Project Intake Status' = nod_pr_status_choice.'IT Estimate', 'Created On' < varSLACutoff))
                 )
     Children:
       - cntHomeBody:
@@ -78,10 +73,24 @@ Screens:
                         Color: =gblTheme.ColorTextPrimary
                         FontWeight: =FontWeight.Semibold
                         Size: =gblTheme.FontSizeH1
-                        Text: ="Welcome, " & varAppUser.Name
+                        Text: ="Welcome, " & Coalesce(varAppUser.Name, varDisplayName, "User")
                         VerticalAlign: =VerticalAlign.Top
                         Width: =500
                         X: =40
+                  - drpQuickRole:
+                      Control: ModernDropdown@1.0.1
+                      Properties:
+                        ItemDisplayText: =ThisItem.Value
+                        Items: |-
+                          =[
+                              "Admin",
+                              "PMO",
+                              "IT Estimate Manager",
+                              "Approver",
+                              "Unauthorized"
+                          ]
+                        X: =349
+                        Y: =9
             - cntHeroRow:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
@@ -211,7 +220,7 @@ Screens:
                         Fill: =gblTheme.ColorSurface
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
-                        Visible: =varAppUser.IsPMO Or varAppUser.IsAdmin Or varAppUser.IsITEstimateManager
+                        Visible: =varIsAdmin Or varIsPMO Or varIsITEstimateManager
                       Children:
                         - txtPMOTitle:
                             Control: ModernText@1.0.0
@@ -228,7 +237,7 @@ Screens:
                               Color: =gblTheme.ColorTextSecondary
                               FontWeight: =FontWeight.Semibold
                               Size: =gblTheme.FontSizeBody
-                              Text: =CountRows(colPMOFinalizationQueue) & " requests awaiting triage"
+                              Text: =CountRows(colPMOTriageQueue) & " requests awaiting triage"
                               Width: =200
                               X: =93
                               Y: =95
@@ -262,7 +271,7 @@ Screens:
                         Fill: =gblTheme.ColorSurface
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
-                        Visible: =Not(varAppUser.IsAdmin) And Not(varAppUser.IsPMO) And Not(varAppUser.IsITEstimateManager)
+                        Visible: =Not(varIsAdmin) And Not(varIsPMO) And Not(varIsITEstimateManager)
                       Children:
                         - txtPMOTitle_1:
                             Control: ModernText@1.0.0
@@ -280,7 +289,11 @@ Screens:
                   Description: ="Submit your first request to see activity."
                   Height: =329
                   IconName: ="DocumentSearch"
-                  OnPrimarySelect: =Navigate(scrIntakeWizard, ScreenTransition.Fade)
+                  OnPrimarySelect: |-
+                    =Set(varWizardMode, "New");
+                      Set(varWizardStep, 0);
+                      Set(varProjectRec, Blank());
+                      Navigate(scrIntakeWizard, ScreenTransition.Fade)
                   OnSecondarySelect: =
                   PrimaryActionLabel: ="New Request"
                   SecondaryActionLabel: =""
@@ -344,12 +357,14 @@ Screens:
                         Shape: ='BadgeCanvas.Shape'.Rounded
                         ThemeColor: |-
                           =Switch(ThisItem.'Project Intake Status',
-                                            nod_pr_status_choice.Draft,      'BadgeCanvas.ThemeColor'.Brand,
-                                            nod_pr_status_choice.'IT Estimate',  'BadgeCanvas.ThemeColor'.Informative,
-                                            nod_pr_status_choice.Approved,   'BadgeCanvas.ThemeColor'.Success,
-                                            nod_pr_status_choice.Rejected,   'BadgeCanvas.ThemeColor'.Danger,
-                                            'BadgeCanvas.ThemeColor'.Subtle
-                                        )
+                              nod_pr_status_choice.Draft,          'BadgeCanvas.ThemeColor'.Subtle,
+                              nod_pr_status_choice.Submitted,      'BadgeCanvas.ThemeColor'.Brand,
+                              nod_pr_status_choice.'PMO Review',   'BadgeCanvas.ThemeColor'.Warning,
+                              nod_pr_status_choice.'IT Estimate',  'BadgeCanvas.ThemeColor'.Informative,
+                              nod_pr_status_choice.Approved,       'BadgeCanvas.ThemeColor'.Success,
+                              nod_pr_status_choice.Rejected,       'BadgeCanvas.ThemeColor'.Danger,
+                              'BadgeCanvas.ThemeColor'.Subtle
+                          )
                         Width: =100
                         X: =Parent.Width - 108
                         Y: =24
@@ -360,9 +375,7 @@ Screens:
                           ="Open request: " & ThisItem.'Request Title'
                         Appearance: ='ButtonCanvas.Appearance'.Transparent
                         Height: =72
-                        OnSelect: |-
-                          =Set(varSelectedRequestId, ThisItem.'IntakeID Request');
-                                        Navigate(scrReview, ScreenTransition.Fade)
+                        OnSelect: =Navigate(scrReview, ScreenTransition.Fade)
                         Text: =""
                         Width: =Parent.Width
       - cmpHeader_1:
