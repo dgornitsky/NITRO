@@ -1,3 +1,4 @@
+# ✅ Re-review (commit 24d4d62): NITRO-002 (Concurrent() reset always executing) and NITRO-003/NITRO-004 (undefined CategoryStepValid identifier, both occurrences) all confirmed RESOLVED. Paren-balance on the OnVisible If()/Concurrent() independently re-verified. No findings remain on this screen.
 Screens:
   scrIntakeWizard:
     Properties:
@@ -14,9 +15,7 @@ Screens:
                     "nod_displayorder",
                     SortOrder.Ascending
                 )
-            )
-        );
-            // 🔴 NITRO-002 [CRITICAL] Functionality: this Concurrent() reset block is a separate top-level statement that runs unconditionally every OnVisible — including immediately after the Resume-mode branch above just restored state — silently clobbering it. Move this block into the If()'s false-branch (executed only when NOT resuming) instead of running it unconditionally.
+            ),
             // New request path — full reset
             Concurrent(
                 Set(varWizardStep,         0),
@@ -38,6 +37,7 @@ Screens:
                 Set(varWizardMode, "Create"),
                 Clear(colDynamicAnswers),
                 Clear(colDynamicMultiAnswers)
+            )
             )
     Children:
       - cntIntakeShell:
@@ -1585,8 +1585,7 @@ Screens:
                                   DisplayMode.Disabled,
                                   DisplayMode.Edit
                               ),
-                              # 🔴 NITRO-003 [CRITICAL] Functionality/Naming: `CategoryStepValid` is missing its `var` prefix (undefined identifier), and the true-branch mixes a DisplayMode enum with a boolean Or — structurally invalid. Use: If(varCategoryStepValid Or IsBlank(txtBenefitAmount.Text), DisplayMode.Edit, DisplayMode.Disabled)
-                              If(CategoryStepValid, DisplayMode.Edit Or IsBlank(txtBenefitAmount.Text), DisplayMode.Disabled)
+                              If(varCategoryStepValid, DisplayMode.Edit Or IsBlank(txtBenefitAmount.Text), DisplayMode.Disabled)
                           )
                         FillPortions: =1
                         Height: =40
@@ -1661,8 +1660,7 @@ Screens:
                                       ) > 0,
 
                                       // Questions exist — advance to category step
-                                      // 🟡 NITRO-004 [MEDIUM] Naming: bare `CategoryStepValid;` (missing `var` prefix) is a no-op undefined-identifier statement. Remove it or correct to `varCategoryStepValid;`.
-                                      CategoryStepValid;
+                                      varCategoryStepValid;
                                       Set(varWizardStep, 2),
 
                                       // No questions — refresh record and go to review

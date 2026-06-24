@@ -205,7 +205,7 @@ Screens:
                                         varProjectRec.nod_SubmittedBy,
                                         "IT Estimate Complete — " & varProjectRec.'Request Title',
                                         _emailBody,
-                                        # 🟠 NITRO-019 [HIGH] ALM: hardcoded email address baked into the formula instead of an Environment Variable.
+                                        // ⚠️ NITRO-019 [STILL PRESENT] Hardcoded personal email address (dgornitsky@nationaloak.com) used as a static Cc recipient instead of a config value/distribution list. Unchanged by this edit pass.
                                         { Cc: "dgornitsky@nationaloak.com", IsHtml: true }
                                     ),
                                     Notify("Estimate submitted, but the notification email failed to send.", NotificationType.Warning)
@@ -216,7 +216,7 @@ Screens:
                                 colEstimateAudit,
                                 {
                                     EventType:   "Estimate Submitted to PMO",
-                                    # 🟡 NITRO-020 [MEDIUM] Functionality: uses varAppUser.Name here but varCurrentSystemUserId elsewhere on this same screen (lines ~1299, ~1347) for the same ChangedBy semantics — standardize on one identity representation.
+                                    // ⚠️ NITRO-020 [STILL PRESENT] ChangedBy here uses varAppUser.Name, but the equivalent audit Collect() near line 1350 uses varCurrentSystemUserId instead — inconsistent identity field across the same audit log. Unchanged by this edit pass.
                                     ChangedBy:   varAppUser.Name,
                                     ChangedAt:   Now(),
                                     Notes:       "Hours: " & varEstimateHours
@@ -226,8 +226,8 @@ Screens:
                                 }
                             );
 
-                            # 🔴 NITRO-007 [CRITICAL] Functionality: 'IntakeID Request' is not a real column — the canonical relationship column is 'Project Intake Request' (confirmed in scrIntakeWizard/scrReview/scrPMOQueue's correct usage). This RemoveIf will error or silently fail.
-                            RemoveIf(colEstimateQueue, 'IntakeID Request' = varProjectRec.'IntakeID Request');
+                            # ✅ NITRO-007 [RESOLVED] Correct column name 'Project Intake Request' now used here (previously a wrong-column bug like NITRO-006).
+                            RemoveIf(colEstimateQueue, 'Project Intake Request' = varProjectRec.'Project Intake Request');
 
                             Notify("Estimate submitted to PMO.", NotificationType.Success);
                             Set(varProjectRec,        Blank());
@@ -290,7 +290,7 @@ Screens:
                         Size: =gblTheme.FontSizeH1
                         Text: ="Open Requests (" & Text(CountRows(galEstimateRequests.AllItems)) & ")"
                         Width: =300
-                  # 🟡 NITRO-022 [MEDIUM] Naming: default control name retained (Rectangle3). Rename per the rec*/gal*/tbl* convention.
+                  # ⚠️ NITRO-022 [STILL PRESENT] Naming Convention: default control name "Rectangle3" left unrenamed (no rctXxx prefix per the app's naming convention). Same issue recurs at Rectangle10, Rectangle11, Rectangle7, Rectangle9, Rectangle6 below — none renamed by this edit pass.
                   - Rectangle3:
                       Control: Rectangle@2.3.0
                       Properties:
@@ -337,11 +337,14 @@ Screens:
                               )
                           );
 
+                          // ✅ NITRO-017 [RESOLVED] Now correctly hydrates from a fresh With({_rec: LookUp(...)}) instead of binding to the gallery's ThisItem directly — fixes the stale-data-on-navigate bug.
                           // 3. Load selected request into working variables (no status mutation on select)
-                          # 🔴 NITRO-017 [CRITICAL] Functionality (K-03 New Variant): hydrates from ThisItem instead of a live LookUp() by GUID — acts on a potentially stale gallery snapshot. Re-fetch via LookUp('Project Intake Requests', nod_projectintakerequestid = ThisItem.nod_projectintakerequestid) first.
-                          Set(varProjectRec,            ThisItem);
-                          Set(varSelectedIntakeRequest, ThisItem);
-                          Set(varITEstimate,            ThisItem);
+                          With({_rec: LookUp('Project Intake Requests',
+                                  nod_projectintakerequestid = ThisItem.nod_projectintakerequestid)},
+                              Set(varProjectRec,            _rec);
+                              Set(varSelectedIntakeRequest, _rec);
+                              Set(varITEstimate,            _rec)
+                          );
                           Set(varSelectedCategory,      ThisItem.'Project Category');
                           Set(varITEstimateMode,
                               If(
@@ -381,12 +384,12 @@ Screens:
                             Control: ModernText@1.0.0
                             Properties:
                               Align: =Align.Center
+                              # 🟡 NITRO-034 [MEDIUM, NEW] Inconsistent fix: BorderColor/BorderThickness below still use raw Color.Orange/Color.Transparent literals while the sibling Color/Fill Switches a few lines down were converted to gblTheme tokens. Same defect family as NITRO-032, different control.
                               BorderColor: |-
                                 =
                                 If(
                                     Text(ThisItem.'IT Estimate Status') = "In Review",
-                                    # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                                    RGBA(245, 158, 11, 1),
+                                    Color.Orange,
                                     Color.Transparent
                                 )
                               BorderThickness: |-
@@ -396,33 +399,34 @@ Screens:
                                     1,
                                     0
                                 )
+                              # 🔴 NITRO-033 [CRITICAL, NEW] Typo'd Choice option: 'Information Needeed' does not match the real Dataverse Choice label (should be 'Information Needed'). Unlike a string-literal mismatch, an enum member reference like this is checked at save time in Power Apps Studio — this is a hard risk of breaking the app on next save, not just a silent logic bug. Second occurrence is in the Fill Switch below.
+                              # 🟡 NITRO-032 [MEDIUM, NEW] Color.DarkOrange below is a raw system color constant, not a gblTheme token — violates the design-token rule (different syntactic form of the same defect family as NITRO-034/NITRO-031's Color.DarkGray).
                               Color: |-
                                 =
-                                # ⚠️ NITRO-023 [MEDIUM] Functionality (unverified): Switch literal "Submitted to IT" is compared against Text('IT Estimate Status'), but the Choice column only defines .Received/.'In Review'/.Complete — this literal likely never matches the real option-set label and silently falls through to the default color. Verify against the Choice column's actual label text and use Text() on the fully-qualified enum member instead of a free string.
                                 Switch(
-                                    Text(ThisItem.'IT Estimate Status'),
-                                    "Submitted to IT",     gblTheme.ColorDanger,
-                                    "Received",           gblTheme.ColorDanger,
+                                    ThisItem.'IT Estimate Status',
+                                    'IT Estimate Status (Project Intake Requests)'.'Information Needeed',     gblTheme.ColorDanger,
+                                    'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDanger,
 
                                     // ✅ NEW In Review text color
-                                    # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                                    "In Review",          RGBA(180, 83, 9, 1),
+                                    'IT Estimate Status (Project Intake Requests)'.'In Review',          Color.DarkOrange,
 
-                                    "IT Estimate Complete", gblTheme.ColorSuccess,
+                                    'IT Estimate Status (Project Intake Requests)'.Complete, gblTheme.ColorSuccess,
                                     gblTheme.ColorTextSecondary
                                 )
+                              # 🔴 NITRO-033 [CRITICAL, NEW] Same typo'd Choice option as above ('Information Needeed' instead of 'Information Needed').
+                              # 🟡 NITRO-032 [MEDIUM, NEW] Color.LightGoldenRodYellow below is a raw system color constant, not a gblTheme token.
                               Fill: |-
                                 =
                                 Switch(
-                                    Text(ThisItem.'IT Estimate Status'),
-                                    "Submitted to IT",     gblTheme.ColorDangerBg,
-                                    "Received",           gblTheme.ColorDangerBg,
+                                    ThisItem.'IT Estimate Status',
+                                    'IT Estimate Status (Project Intake Requests)'.'Information Needeed',     gblTheme.ColorDangerBg,
+                                    'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDangerBg,
 
                                     // ✅ NEW In Review color
-                                    # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                                    "In Review",          RGBA(254, 243, 199, 1),
+                                    'IT Estimate Status (Project Intake Requests)'.'In Review',          Color.LightGoldenRodYellow,
 
-                                    "IT Estimate Complete", gblTheme.ColorSuccessBg,
+                                    'IT Estimate Status (Project Intake Requests)'.Complete, gblTheme.ColorSuccessBg,
                                     gblTheme.ColorSurfaceMuted
                                 )
                               FontWeight: =FontWeight.Semibold
@@ -469,11 +473,9 @@ Screens:
                         - recRowBottom:
                             Control: Rectangle@2.3.0
                             Properties:
-                              # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                              BorderColor: =RGBA(229, 231, 235, 1)
+                              BorderColor: =gblTheme.ColorBorder
                               BorderThickness: =1
-                              # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                              Fill: =RGBA(229, 231, 235, 1)
+                              Fill: =gblTheme.ColorBorderStrong
                               Height: =1
                               OnSelect: =Select(Parent)
                               Width: =Parent.TemplateWidth - 16
@@ -595,7 +597,6 @@ Screens:
                                     RadiusTopRight: =gblTheme.RadiusSm
                                     Text: =Coalesce(varITEstimate.'Request Title', "—")
                                     Width: =Parent.Width - lblTitleField.Width
-                        # 🟡 NITRO-022 [MEDIUM] Naming: default control name retained (Rectangle10). Rename per the rec*/gal*/tbl* convention.
                         - Rectangle10:
                             Control: Rectangle@2.3.0
                             Properties:
@@ -656,7 +657,6 @@ Screens:
                                     RadiusTopRight: =gblTheme.RadiusSm
                                     Text: =Coalesce(varITEstimate.nod_SubmittedBy, "—")
                                     Width: =Parent.Width - lblSubmittedByField.Width
-                        # 🟡 NITRO-022 [MEDIUM] Naming: default control name retained (Rectangle11). Rename per the rec*/gal*/tbl* convention.
                         - Rectangle11:
                             Control: Rectangle@2.3.0
                             Properties:
@@ -717,7 +717,6 @@ Screens:
                                     RadiusTopRight: =gblTheme.RadiusSm
                                     Text: =Coalesce(varITEstimate.'What problem are you trying to solve?', "—")
                                     Width: =Parent.Width - lblProblemField.Width
-                        # 🟡 NITRO-022 [MEDIUM] Naming: default control name retained (Rectangle7). Rename per the rec*/gal*/tbl* convention.
                         - Rectangle7:
                             Control: Rectangle@2.3.0
                             Properties:
@@ -777,7 +776,6 @@ Screens:
                                     RadiusTopRight: =gblTheme.RadiusSm
                                     Text: =Coalesce(varITEstimate.'Project Category', Blank())
                                     Width: =Parent.Width - lblProjCatField.Width
-                        # 🟡 NITRO-022 [MEDIUM] Naming: default control name retained (Rectangle9). Rename per the rec*/gal*/tbl* convention.
                         - Rectangle9:
                             Control: Rectangle@2.3.0
                             Properties:
@@ -914,7 +912,6 @@ Screens:
                               Size: =gblTheme.FontSizeH2
                               Text: ="CATEGORY QUESTIONS"
                               Visible: =CountRows(colEstimateAnswers) > 0
-                        # 🟡 NITRO-022 [MEDIUM] Naming: default control name retained (DataGrid2). Rename per the rec*/gal*/tbl* convention.
                         - DataGrid2:
                             Control: ModernDataGrid@1.3.0
                             Properties:
@@ -950,7 +947,6 @@ Screens:
                                     Text: =ThisItem.'Question Label'
                                     Width: =243
                                     Wrap: =true
-                        # 🟡 NITRO-022 [MEDIUM] Naming: default control name retained (Rectangle7_2). Rename per the rec*/gal*/tbl* convention.
                         - Rectangle7_2:
                             Control: Rectangle@2.3.0
                             Properties:
@@ -1046,8 +1042,8 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-            Fill: =RGBA(0, 0, 0, 0.45)
+            # 🟠 NITRO-031 [HIGH, NEW] Fix attempt regression: this scrim was previously a semi-transparent RGBA(0,0,0,alpha) and is now bound to gblTheme.ColorBorderStrong = RGBA(160,170,184,1) — alpha is 1 (fully opaque), so the overlay no longer dims content behind it, it just paints a solid gray block. Should be a token/RGBA with alpha < 1.
+            Fill: =gblTheme.ColorBorderStrong
             Height: =App.Height
             Visible: =varIsSubmitting
             Width: =App.Width
@@ -1134,8 +1130,7 @@ Screens:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
                 Properties:
-                  # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                  Fill: =RGBA(248, 249, 250, 1)
+                  Fill: =gblTheme.ColorSurface
                   LayoutAlignItems: =LayoutAlignItems.Stretch
                   LayoutDirection: =LayoutDirection.Vertical
                   LayoutGap: =16
@@ -1214,8 +1209,7 @@ Screens:
                             Control: GroupContainer@1.5.0
                             Variant: AutoLayout
                             Properties:
-                              # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                              Fill: =RGBA(249, 250, 251, 1)
+                              Fill: =gblTheme.ColorSurface
                               FillPortions: =0
                               Height: =40
                               LayoutAlignItems: =LayoutAlignItems.Center
@@ -1242,16 +1236,14 @@ Screens:
                         - recMessageDivider:
                             Control: Rectangle@2.3.0
                             Properties:
-                              # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                              Fill: =RGBA(229, 231, 235, 1)
+                              Fill: =gblTheme.ColorBorder
                               Height: =1
                               LayoutMinHeight: =1
                               LayoutMinWidth: =16
                         - txtContactMessage:
                             Control: ModernTextInput@1.1.0
                             Properties:
-                              # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                              BorderColor: =RGBA(229, 231, 235, 1)
+                              BorderColor: =gblTheme.ColorBorder
                               BorderThickness: =0
                               Fill: =gblTheme.ColorSurface
                               Height: =160
@@ -1283,8 +1275,7 @@ Screens:
                               - btnOpenTeamsChat:
                                   Control: Button@0.0.45
                                   Properties:
-                                    # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                                    BasePaletteColor: =RGBA(98,100,167,1)
+                                    BasePaletteColor: =Color.Purple
                                     DisplayMode: |-
                                       =If(
                                       Len(Trim(txtContactMessage.Text)) > 0,
@@ -1319,7 +1310,8 @@ Screens:
                                                                                 Collect(colEstimateAudit,
                                                                                     {
                                                                                         EventType:   "Info Requested (Teams)",
-                                                                                        ChangedBy:   varCurrentSystemUserId,
+                                                                                        // ⚠️ NITRO-020 [STILL PRESENT] Second occurrence of the ChangedBy inconsistency — compare to varCurrentSystemUserId used a few lines down in btnSendEmail's audit Collect().
+                                                                                        ChangedBy:   varAppUser.Name,
                                                                                         ChangedAt:   Now(),
                                                                                         Notes:       txtContactMessage.Text,
                                                                                         StatusColor: 'BadgeCanvas.ThemeColor'.Warning
@@ -1335,7 +1327,7 @@ Screens:
                                   Control: Button@0.0.45
                                   Properties:
                                     Appearance: ='ButtonCanvas.Appearance'.Secondary
-                                    # 🔵 NITRO-021 [LOW] Design System: uses the legacy gblColorText shim instead of gblTheme.ColorTextPrimary directly.
+                                    # ⚠️ NITRO-021 [STILL PRESENT] BasePaletteColor references the legacy gblColorText shim global instead of a gblTheme.* token — one of the last hold-outs from the pre-design-system era (see App.OnStart NITRO-028).
                                     BasePaletteColor: =gblColorText
                                     DisplayMode: |-
                                       =If(
@@ -1354,7 +1346,6 @@ Screens:
                                                                                     varProjectRec.nod_SubmittedBy,
                                                                                     "More Information Needed — " & varProjectRec.'Request Title',
                                                                                     "<p>...</p>",
-                                                                                    # 🟠 NITRO-019 [HIGH] ALM: hardcoded email address baked into the formula instead of an Environment Variable.
                                                                                     { Cc: "pmo@nationaloak.com", IsHtml: true }
                                                                                 );
                                                                                 Patch(
@@ -1369,6 +1360,7 @@ Screens:
                                                                                 Collect(colEstimateAudit,
                                                                                     {
                                                                                         EventType:   "Info Requested",
+                                                                                        // ⚠️ NITRO-020 [STILL PRESENT] This audit entry uses varCurrentSystemUserId while the other two Collect() calls on this screen use varAppUser.Name for the same ChangedBy field — pick one and use it consistently.
                                                                                         ChangedBy:   varCurrentSystemUserId,
                                                                                         ChangedAt:   Now(),
                                                                                         Notes:       txtContactMessage.Text,
@@ -1376,7 +1368,6 @@ Screens:
                                                                                     }
                                                                                 );
                                                                                 Notify(
-                                                                                    # 🟠 NITRO-019 [HIGH] ALM: hardcoded email address baked into the formula instead of an Environment Variable.
                                                                                     "Email sent to " & varProjectRec.nod_SubmittedBy & " (CC: pmo@nationaloak.com)",
                                                                                     NotificationType.Success
                                                                                 );
@@ -1591,13 +1582,12 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-            Fill: =RGBA(0, 0, 0, 0.35)
+            # 🟠 NITRO-031 [HIGH, NEW] Fix attempt regression: gblTheme.ColorSurfaceAlt = RGBA(247,249,252,1) is fully opaque (alpha 1). This modal scrim previously used a transparent black overlay to dim the screen behind it; it now paints a solid near-white block instead. Second of three occurrences.
+            Fill: =gblTheme.ColorSurfaceAlt
             Height: =App.Height
             Visible: =varEstimateInputSelect
             Width: =App.Width
           Children:
-            # 🟡 NITRO-022 [MEDIUM] Naming: default control name retained (Rectangle6). Rename per the rec*/gal*/tbl* convention.
             - Rectangle6:
                 Control: Rectangle@2.3.0
                 Properties:
@@ -1971,7 +1961,6 @@ Screens:
                         Height: =40
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
-                        # ⚠️ NITRO-024 [LOW] YAML Syntax: Stray blank line after the "=" Power Fx marker on OnSelect. Cosmetic only, but remove the dangling blank line for clean diffs.
                         OnSelect: |-
                           =
                           Set(varEstimateInputSelect, false);
@@ -2046,8 +2035,8 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-            Fill: =RGBA(0, 0, 0, 0.5)
+            # 🟠 NITRO-031 [HIGH, NEW] + 🟡 NITRO-032 [MEDIUM, NEW] Fix attempt regression: Color.DarkGray is a raw system color constant (not a gblTheme token, violating the design-token rule) AND is fully opaque, so this scrim no longer dims content behind it — it paints a solid dark-gray block. Third of three scrim occurrences.
+            Fill: =Color.DarkGray
             Height: =App.Height
             Visible: =varShowNotesPanel
             Width: =App.Width
@@ -2120,8 +2109,7 @@ Screens:
                       Control: GroupContainer@1.5.0
                       Variant: AutoLayout
                       Properties:
-                        # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                        Fill: =RGBA(248, 249, 250, 1)
+                        Fill: =gblTheme.ColorSurface
                         LayoutAlignItems: =LayoutAlignItems.Stretch
                         LayoutDirection: =LayoutDirection.Vertical
                         LayoutGap: =gblTheme.Space3
@@ -2144,8 +2132,7 @@ Screens:
                         - txtEstimateNotes:
                             Control: ModernTextInput@1.1.0
                             Properties:
-                              # 🟡 NITRO-018 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(...) literal instead of a gblTheme token.
-                              BorderColor: =RGBA(229, 231, 235, 1)
+                              BorderColor: =gblTheme.ColorBorder
                               BorderThickness: =1
                               Default: =varEstimateNotesText
                               Fill: =gblTheme.ColorSurface

@@ -2,10 +2,18 @@ Screens:
   scrPMOQueue:
     Properties:
       Fill: =gblTheme.ColorSurfaceAlt
-      # 🟠 NITRO-015 [HIGH] Role-Based Access: OnVisible never role-checks before setting varRedirectToHome — it's unconditionally set to false, so tmrRedirectGuard (Start: =varRedirectToHome) never trips for unauthorized users. Add If(Not(varIsAdmin Or varIsPMO), Set(varRedirectToHome, true), Set(varRedirectToHome, false); ...) like scrAdminQuestions/scrITEstimate.
+      # ✅ NITRO-015 [RESOLVED] Role Access: a real role-check gate now exists (nested If below), driving tmrRedirectGuard correctly.
+      # ⚠️ NITRO-035 [LOW] YAML Syntax: indentation in this block is inconsistent (mixed 8/20-space levels) — cosmetic only, reformat for readability.
       OnVisible: |-
         =// scrPMOQueue.OnVisible — expanded authorized path
         Set(varRedirectToHome, false);
+        If(
+                    Not(varAppReady),
+                    true,
+                    If(
+                        Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
+                        Set(varRedirectToHome, true),
+                        Set(varRedirectToHome, false);
         Concurrent(
             // ── Triage queue: PMO-actionable (Submitted / PMO Review) ─────────────────
             ClearCollect(
@@ -64,7 +72,7 @@ Screens:
             Not(IsEmpty(colPMOTriageQueue)),
             Set(varSelectedPMORecord, First(colPMOTriageQueue)),
             Set(varSelectedPMORecord, Blank())
-        )
+        )))
     Children:
       - cntMain:
           Control: GroupContainer@1.5.0
@@ -431,13 +439,10 @@ Screens:
                                   Properties:
                                     AccessibleLabel: ="Submit this PMO Triage request to IT for estimation"
                                     BasePaletteColor: =gblTheme.ColorBrandPrimary
-                                    # 🔴 NITRO-005 [CRITICAL] Functionality/Naming: `PMOStage` is missing its `var` prefix — undefined identifier. Should be `varPMOStage` (which IS set correctly elsewhere on this screen, e.g. btnReturnToSubmitter.OnSelect).
+                                    # ✅ NITRO-005 [RESOLVED] Functionality/Naming: undefined `PMOStage` corrected to `varPMOStage`.
                                     DisplayMode: |-
-                                      =If(
-                                                        varIsPMO And Not(IsBlank(varSelectedPMORecord)) And PMOStage = "NeedsEstimate",
-                                                        DisplayMode.Edit,
-                                                        DisplayMode.Disabled
-                                                    )
+                                      =If(varIsPMO And Not(IsBlank(varSelectedPMORecord)) And varPMOStage = "NeedsEstimate",
+                                        DisplayMode.Edit,DisplayMode.Disabled)
                                     FillPortions: =1
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
@@ -460,11 +465,11 @@ Screens:
                                                   )
                                               },
 
+                                              // ✅ NITRO-006 [RESOLVED at this location] Functionality: 'IntakeID Request' corrected to 'Project Intake Request'. NOTE: two other occurrences of this same bug remain — see btnReturnToSubmitter.OnSelect below and the reclass-confirm OnSelect further down this file.
                                               // ── Remove routed record from local PMO queue collection ─────────────
-                                              # 🔴 NITRO-006 [CRITICAL] Functionality: 'IntakeID Request' is not a real column — the canonical relationship column (confirmed in scrIntakeWizard/scrReview) is 'Project Intake Request'. This RemoveIf will error or silently fail to remove the row, leaving a stale entry in the queue.
                                               RemoveIf(
                                                   colPMOTriageQueue,
-                                                  'IntakeID Request' = _patched.'IntakeID Request'
+                                                  'Project Intake Request' = _patched.'Project Intake Request'
                                               );
 
                                               // ── In-session audit entry (Dataverse audit flow deferred) ───────────
@@ -512,7 +517,7 @@ Screens:
                                                     )
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
-                                    # 🟡 NITRO-014 [MEDIUM] YAML Syntax: multi-line formula written as an inline-quoted string with escaped \r\n instead of the |- block scalar — also contains the same 'IntakeID Request' column-name bug (NITRO-006) inside its RemoveIf call. Convert to |- block style and fix the column name.
+                                    # ⚠️ NITRO-014 [MEDIUM, STILL PRESENT] YAML Syntax: this formula is still an inline-quoted string with escaped \r\n instead of the |- block scalar style used elsewhere on this screen. It also still embeds the NITRO-006 wrong-column bug — RemoveIf(colPMOTriageQueue, 'IntakeID Request' = _patched.'IntakeID Request') should be 'Project Intake Request'. This is the second of two remaining occurrences (see also the reclass-confirm OnSelect below).
                                     OnSelect: "=IfError(\r\n                  With(\r\n                      {\r\n                          _newClass: If(\r\n                              IsBlank(varPMOReclassTo)\r\n                                  Or varPMOReclassTo = Text(varSelectedPMORecord.'Project Classification'),\r\n                              Blank(),\r\n                              varPMOReclassTo\r\n                          ),\r\n                          _patched: Patch(\r\n                              'Project Intake Requests',\r\n                              varSelectedPMORecord,\r\n                              {\r\n                                  'Project Intake Status': nod_pr_status_choice.Draft,\r\n                                  'PMO Notes':             varTriageNotesText\r\n                              }\r\n                          )\r\n                      },\r\n                      RemoveIf(colPMOTriageQueue, 'IntakeID Request' = _patched.'IntakeID Request');\r\n                      Set(varSelectedPMORecord, Blank());\r\n                      Set(varPMOReclassTo, \"\");\r\n                      Set(varPMOReclassReason, \"\");\r\n                      Set(varTriageNotesText, \"\");\r\n                      Reset(txtTriageNotes);\r\n                      Reset(ddReclass);\r\n                \r\n                      If(\r\n                          Not(IsEmpty(colPMOTriageQueue)),\r\n                          Set(varSelectedPMORecord, First(colPMOTriageQueue));\r\n                          Set(varPMOStage,\r\n                              If(\r\n                                  First(colPMOTriageQueue).'IT Estimate Status'\r\n                                      = 'IT Estimate Status (Project Intake Requests)'.Complete,\r\n                                  \"EstimateReady\",\r\n                                  \"NeedsEstimate\"\r\n                              )\r\n                          )\r\n                      );\r\n                      Notify(\"Request returned to submitter.\", NotificationType.Warning)\r\n                  ),\r\n                  Notify(\"Return failed: \" & FirstError.Message, NotificationType.Error)\r\n              )"
                                     Text: ="Return to Submitter"
                                     Width: =160
@@ -623,7 +628,7 @@ Screens:
                                                       },
 
                                                       // Remove from triage queue
-                                                      # 🔴 NITRO-006 [CRITICAL] Functionality: same 'IntakeID Request' vs 'Project Intake Request' column-name mismatch as above.
+                                                      // ⚠️ NITRO-006 [STILL PRESENT] Functionality: wrong column name 'IntakeID Request' — should be 'Project Intake Request'. This is the last remaining occurrence of this defect (one fixed at btnSubmitToIT.OnSelect, one still present at btnReturnToSubmitter.OnSelect above).
                                                       RemoveIf(
                                                           colPMOTriageQueue,
                                                           'IntakeID Request' = _patched.'IntakeID Request'
@@ -661,8 +666,8 @@ Screens:
           Control: CanvasComponent
           ComponentName: cmpHeader
           Properties:
-            # 🟠 NITRO-013 [HIGH] ALM: EnvironmentLabel left as placeholder literal "Text" instead of the real environment-label expression.
-            EnvironmentLabel: ="Text"
+            # ✅ NITRO-012/NITRO-013 [RESOLVED] EnvironmentLabel now bound to varEnvironmentLabel and CurrentScreen below correctly set to "queue" — both confirmed correct.
+            EnvironmentLabel: =varEnvironmentLabel
             Fill: =gblTheme.ColorBrandPrimary
             Height: =56
             OnBackSelect: =
@@ -673,10 +678,8 @@ Screens:
           Control: CanvasComponent
           ComponentName: cmpPrimaryNav
           Properties:
-            # 🟠 NITRO-013 [HIGH] ALM: CurrentScreen left as placeholder literal "Text" instead of "queue" — breaks nav-item highlighting for this screen.
-            CurrentScreen: ="Text"
-            # 🟡 NITRO-012 [MEDIUM] Design System (K-11 Still Present): hardcoded RGBA(1, 81, 52, 1) instead of a gblTheme token.
-            Fill: =RGBA(1, 81, 52, 1)
+            CurrentScreen: ="queue"
+            Fill: =gblTheme.ColorBrandAccent
             Height: =48
             NavItems: |-
               =Table(

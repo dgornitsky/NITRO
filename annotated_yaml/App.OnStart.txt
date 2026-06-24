@@ -117,7 +117,7 @@ Set(gblBreakpoint,
     )
 );
 
-// 🔵 NITRO-028 [LOW] ALM: Legacy color shim retained alongside gblTheme; still referenced from scrITEstimate (NITRO-021). Finish migration then delete this block.
+// ⚠️ NITRO-028 [LOW] ALM: legacy shim globals retained alongside gblTheme; still referenced from scrITEstimate (NITRO-021). Finish migration, then delete this block.
 // ─── 4. LEGACY COLOR SHIMS (remove after full token migration) ───────────────
 Set(gblColorGreen, gblTheme.ColorBrandAccent);
 Set(gblColorRed,   gblTheme.ColorDanger);
@@ -204,12 +204,12 @@ If(
         )
     )
 );
-// 🔴 NITRO-001 [CRITICAL] Functionality (K-02 New Variant): role flags use the banned If(x=true,true,false) wrapper instead of the bare null-safe `x = true` pattern. Replace each with e.g. `Set(varIsAdmin, varAppUser.IsAdmin = true);`.
+// ✅ NITRO-001 [RESOLVED] Role flags now use the bare null-safe `varAppUser.X = true` pattern (K-02 resolved).
 // ─── 8. ROLE FLAGS ───────────────────────────────────────────────────────────
-Set(varIsAdmin,             If(varAppUser.IsAdmin             = true, true, false));
-Set(varIsPMO,               If(varAppUser.IsPMO               = true, true, false));
-Set(varIsITEstimateManager, If(varAppUser.IsITEstimateManager = true, true, false));
-Set(varIsApprover,          If(varAppUser.IsApprover          = true, true, false));
+Set(varIsAdmin,             varAppUser.IsAdmin             = true);
+Set(varIsPMO,               varAppUser.IsPMO               = true);
+Set(varIsITEstimateManager, varAppUser.IsITEstimateManager = true);
+Set(varIsApprover,          varAppUser.IsApprover          = true);
 Set(varCanEdit,             varIsAdmin Or varIsPMO);
 Set(varAppReady,            true);
 
@@ -289,9 +289,9 @@ Set(varNotesLog,        "");
 Set(varPMOActiveTab,        "Triage");
 Set(varSelectedPMORecord,   Blank());
 
-// 🔴 NITRO-029 [CRITICAL] Functionality (K-12 Still Present): record-typed variable initialized with "" instead of Blank() — locks the var as Text and will fail on later record assignment. Change to `Set(varSelectedApprovalRec, Blank());`.
+// ⚠️ NITRO-030 [CRITICAL] Functionality / YAML Syntax (K-12 fix attempt failed — New Variant): missing closing paren after Blank(). The file's overall paren count only stays balanced because of a compensating extra ")" added to the final ClearCollect() at end-of-file — every statement between here and EOF is now nested as one chained argument inside this Set(), and varSelectedApprovalRec ends up bound to the final ClearCollect's return value, not Blank(). Fix: Set(varSelectedApprovalRec, Blank()); on its own line.
 // ─── 14. APPROVAL SCREEN STATE ───────────────────────────────────────────────
-Set(varSelectedApprovalRec, "");
+Set(varSelectedApprovalRec, Blank();
 
 // ─── 15. WIZARD STEP STATES (future screens) ─────────────────────────────────
 Set(varReqWizardStep,       0);
@@ -300,6 +300,7 @@ Set(varScheduleWizardStep,  0);
 Set(varSelectedActiveProject, "");
 Set(varSelectedProject,       "");
 Set(varMyRequestsFilter,    "All");
+Set(varEnvironmentLabel, "");
 
 // ─── 16. CHOICES + USER PROFILE (parallel) ────────────────────────────────────
 Concurrent(
@@ -357,4 +358,5 @@ ClearCollect(colCmpDetailsListColumns,
     { ColName: "nod_benefitscore",    ColDisplayName: "Score",          ColWidth: 80,  ColIsBold: false, ColSortable: true },
     { ColName: "nod_status",          ColDisplayName: "Status",         ColWidth: 130, ColIsBold: false, ColSortable: true },
     { ColName: "createdon",           ColDisplayName: "Date Submitted", ColWidth: 140, ColIsBold: false, ColSortable: true }
-);
+# ⚠️ NITRO-030 [CRITICAL] (continued from line ~291): this extra ")" is the compensating close for the unclosed Blank(...) Set() above — see annotation near varSelectedApprovalRec. Should be a single ");" once that statement is fixed.
+));

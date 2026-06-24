@@ -1,3 +1,4 @@
+# ✅ Re-review (commit 24d4d62): NITRO-010 (drpQuickRole role-switcher dropdown) and NITRO-011 (Navigate without live LookUp) both confirmed RESOLVED. No findings remain on this screen.
 Screens:
   scrHome:
     Properties:
@@ -77,21 +78,6 @@ Screens:
                         VerticalAlign: =VerticalAlign.Top
                         Width: =500
                         X: =40
-                  # 🟠 NITRO-010 [HIGH] Role-Based Access: role-switcher dropdown left on the production Home screen; remove from production build or gate Visible behind a non-production flag.
-                  - drpQuickRole:
-                      Control: ModernDropdown@1.0.1
-                      Properties:
-                        ItemDisplayText: =ThisItem.Value
-                        Items: |-
-                          =[
-                              "Admin",
-                              "PMO",
-                              "IT Estimate Manager",
-                              "Approver",
-                              "Unauthorized"
-                          ]
-                        X: =349
-                        Y: =9
             - cntHeroRow:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
@@ -376,8 +362,10 @@ Screens:
                           ="Open request: " & ThisItem.'Request Title'
                         Appearance: ='ButtonCanvas.Appearance'.Transparent
                         Height: =72
-                        # 🟠 NITRO-011 [HIGH] Functionality: navigates to scrReview without setting varProjectRec/varSelectedRecord — scrReview opens against stale/wrong context. Set the record (via live LookUp on GUID) before navigating.
-                        OnSelect: =Navigate(scrReview, ScreenTransition.Fade)
+                        OnSelect: |-
+                          =Set(varProjectRec, LookUp('Project Intake Requests',
+                                nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                            Navigate(scrReview, ScreenTransition.Fade)
                         Text: =""
                         Width: =Parent.Width
       - cmpHeader_1:
