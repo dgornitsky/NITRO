@@ -205,7 +205,7 @@ Screens:
                                         varProjectRec.nod_SubmittedBy,
                                         "IT Estimate Complete — " & varProjectRec.'Request Title',
                                         _emailBody,
-                                        { Cc: "dgornitsky@nationaloak.com", IsHtml: true }
+                                        { Cc: varPMOEmail, IsHtml: true }
                                     ),
                                     Notify("Estimate submitted, but the notification email failed to send.", NotificationType.Warning)
                                 )
@@ -1333,7 +1333,7 @@ Screens:
                                                                                     varProjectRec.nod_SubmittedBy,
                                                                                     "More Information Needed — " & varProjectRec.'Request Title',
                                                                                     "<p>...</p>",
-                                                                                    { Cc: "pmo@nationaloak.com", IsHtml: true }
+                                                                                    { Cc: varPMOEmail, IsHtml: true }
                                                                                 );
                                                                                 Patch(
                                                                                     'Project Intake Requests',
@@ -1354,7 +1354,7 @@ Screens:
                                                                                     }
                                                                                 );
                                                                                 Notify(
-                                                                                    "Email sent to " & varProjectRec.nod_SubmittedBy & " (CC: pmo@nationaloak.com)",
+                                                                                    "Email sent to " & varProjectRec.nod_SubmittedBy & " (CC: " & varPMOEmail & ")",
                                                                                     NotificationType.Success
                                                                                 );
                                                                                 Set(varShowContactPanel, false);
