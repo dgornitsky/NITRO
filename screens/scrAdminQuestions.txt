@@ -507,15 +507,16 @@ Screens:
                         Text: ="Question Type *"
                         Width: =Parent.Width
                   - ddAdminQType:
-                      Control: DropDown@0.0.45
+                      Control: ModernCombobox@1.1.0
                       Properties:
                         AccessibleLabel: ="Question type, required"
                         BorderColor: =gblTheme.ColorBorder
                         BorderThickness: =1
                         Fill: =gblTheme.ColorSurface
                         Height: =44
+                        ItemDisplayText: =ThisItem.Value
                         Items: =Choices('Question Type (Intake Questions)')
-                        LayoutMinHeight: =44
+                        LayoutMinHeight: =16
                         LayoutMinWidth: =16
                         Width: =Parent.Width
             - conPanelQOrder:
