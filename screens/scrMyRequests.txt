@@ -432,7 +432,7 @@ Screens:
                               LayoutMinWidth: =16
                               OnSelect: |-
                                 =Set(varSelectedRequest, LookUp('Project Intake Requests',
-                                    nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                                    'Project Intake Request' = ThisItem.'Project Intake Request'));
                                 Set(varProjectRec, varSelectedRequest);
                                 Set(varReviewConfirmed,   false);
                                 ClearCollect(colReviewBasics,
