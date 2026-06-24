@@ -180,8 +180,9 @@ If(
                     IsITEstimateManager:           false
                 }
             )
-        ),
-        // Patch failed (race condition / duplicate) — recover via LookUp
+        );
+        Set(varCurrentSystemUserId, varAppUser.'Email Address (emailaddress)'),
+        // Patch failed — attempt recovery LookUp
         Set(
             varAppUser,
             LookUp(
@@ -190,7 +191,8 @@ If(
                 And IsActive = true
             )
         );
-        // If still blank after recovery, flag degraded
+        Set(varCurrentSystemUserId, varAppUser.'Email Address (emailaddress)');
+        // If still blank after recovery, flag the app as degraded
         If(
             IsBlank(varAppUser),
             Set(varAppReady, false);
@@ -201,18 +203,14 @@ If(
         )
     )
 );
-
-// ─── varCurrentSystemUserId — set ONCE after full resolution ─────────────────
-// (set alongside role flags below, or immediately after this block)
-Set(varCurrentSystemUserId, varUPN);
 // ─── 8. ROLE FLAGS ───────────────────────────────────────────────────────────
-Set(varIsAdmin,             Coalesce(varAppUser.IsAdmin,             false));
-Set(varIsPMO,               Coalesce(varAppUser.IsPMO,               false));
-Set(varIsITEstimateManager, Coalesce(varAppUser.IsITEstimateManager, false));
-Set(varIsApprover,          Coalesce(varAppUser.IsApprover,          false));
+Set(varIsAdmin,             varAppUser.IsAdmin             = true);
+Set(varIsPMO,               varAppUser.IsPMO               = true);
+Set(varIsITEstimateManager, varAppUser.IsITEstimateManager = true);
+Set(varIsApprover,          varAppUser.IsApprover          = true);
 Set(varCanEdit,             varIsAdmin Or varIsPMO);
-Set(varCurrentSystemUserId, varUPN);
 Set(varAppReady,            true);
+
 // ─── 9. UI STATE VARIABLES ───────────────────────────────────────────────────
 Set(varReviewVisible,       false);
 Set(varMyRequestsTab,       "");
@@ -236,20 +234,6 @@ Set(varGuideTab,            "");
 Set(varSelectedRequestId,   "");
 Set(varQueueCollapsed,      false);
 Set(varIsSaving, false);
-// ─── AUDIT STATE ──────────────────────────────────────────────────────────────
-Set(varAuditLoading, false);
-ClearCollect(colAuditLog,
-    {
-        EventType:      "",
-        ChangedBy:      "",
-        ChangedByEmail: "",
-        ChangedAt:      Now(),
-        PreviousValue:  "",
-        NewValue:       "",
-        RequestId:      GUID("00000000-0000-0000-0000-000000000000")
-    }
-);
-Clear(colAuditLog);
 
 // ─── 10. INTAKE / WIZARD STATE ───────────────────────────────────────────────
 Set(varWizardStep,           0);
@@ -304,7 +288,7 @@ Set(varPMOActiveTab,        "Triage");
 Set(varSelectedPMORecord,   Blank());
 
 // ─── 14. APPROVAL SCREEN STATE ───────────────────────────────────────────────
-//Set(varSelectedApprovalRec, Blank());
+Set(varSelectedApprovalRec, Blank();
 
 // ─── 15. WIZARD STEP STATES (future screens) ─────────────────────────────────
 Set(varReqWizardStep,       0);
@@ -313,6 +297,7 @@ Set(varScheduleWizardStep,  0);
 Set(varSelectedActiveProject, "");
 Set(varSelectedProject,       "");
 Set(varMyRequestsFilter,    "All");
+Set(varEnvironmentLabel, "");
 
 // ─── 16. CHOICES + USER PROFILE (parallel) ────────────────────────────────────
 Concurrent(
@@ -370,7 +355,7 @@ ClearCollect(colCmpDetailsListColumns,
     { ColName: "nod_benefitscore",    ColDisplayName: "Score",          ColWidth: 80,  ColIsBold: false, ColSortable: true },
     { ColName: "nod_status",          ColDisplayName: "Status",         ColWidth: 130, ColIsBold: false, ColSortable: true },
     { ColName: "createdon",           ColDisplayName: "Date Submitted", ColWidth: 140, ColIsBold: false, ColSortable: true }
-);
+));
 Screens:
   scrHome:
     Properties:
@@ -411,12 +396,7 @@ Screens:
                 });
                 Set(varSLACutoff, DateAdd(Now(), -48, TimeUnit.Hours));
                 Set(varHomePMOSLABreach,
-                    CountRows(
-                        Filter(colHomeRequests,
-                            'Project Intake Status' = nod_pr_status_choice.'IT Estimate',
-                            'Created On' < varSLACutoff
-                        )
-                    )
+                    CountRows(Filter('Project Intake Requests', 'Project Intake Status' = nod_pr_status_choice.'IT Estimate', 'Created On' < varSLACutoff))
                 )
     Children:
       - cntHomeBody:
@@ -451,7 +431,7 @@ Screens:
                         Color: =gblTheme.ColorTextPrimary
                         FontWeight: =FontWeight.Semibold
                         Size: =gblTheme.FontSizeH1
-                        Text: ="Welcome, " & varAppUser.Name
+                        Text: ="Welcome, " & Coalesce(varAppUser.Name, varDisplayName, "User")
                         VerticalAlign: =VerticalAlign.Top
                         Width: =500
                         X: =40
@@ -584,7 +564,7 @@ Screens:
                         Fill: =gblTheme.ColorSurface
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
-                        Visible: =varAppUser.IsPMO Or varAppUser.IsAdmin Or varAppUser.IsITEstimateManager
+                        Visible: =varIsAdmin Or varIsPMO Or varIsITEstimateManager
                       Children:
                         - txtPMOTitle:
                             Control: ModernText@1.0.0
@@ -601,7 +581,7 @@ Screens:
                               Color: =gblTheme.ColorTextSecondary
                               FontWeight: =FontWeight.Semibold
                               Size: =gblTheme.FontSizeBody
-                              Text: =CountRows(colPMOFinalizationQueue) & " requests awaiting triage"
+                              Text: =CountRows(colPMOTriageQueue) & " requests awaiting triage"
                               Width: =200
                               X: =93
                               Y: =95
@@ -635,7 +615,7 @@ Screens:
                         Fill: =gblTheme.ColorSurface
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
-                        Visible: =Not(varAppUser.IsAdmin) And Not(varAppUser.IsPMO) And Not(varAppUser.IsITEstimateManager)
+                        Visible: =Not(varIsAdmin) And Not(varIsPMO) And Not(varIsITEstimateManager)
                       Children:
                         - txtPMOTitle_1:
                             Control: ModernText@1.0.0
@@ -653,7 +633,11 @@ Screens:
                   Description: ="Submit your first request to see activity."
                   Height: =329
                   IconName: ="DocumentSearch"
-                  OnPrimarySelect: =Navigate(scrIntakeWizard, ScreenTransition.Fade)
+                  OnPrimarySelect: |-
+                    =Set(varWizardMode, "New");
+                      Set(varWizardStep, 0);
+                      Set(varProjectRec, Blank());
+                      Navigate(scrIntakeWizard, ScreenTransition.Fade)
                   OnSecondarySelect: =
                   PrimaryActionLabel: ="New Request"
                   SecondaryActionLabel: =""
@@ -717,12 +701,14 @@ Screens:
                         Shape: ='BadgeCanvas.Shape'.Rounded
                         ThemeColor: |-
                           =Switch(ThisItem.'Project Intake Status',
-                                            nod_pr_status_choice.Draft,      'BadgeCanvas.ThemeColor'.Brand,
-                                            nod_pr_status_choice.'IT Estimate',  'BadgeCanvas.ThemeColor'.Informative,
-                                            nod_pr_status_choice.Approved,   'BadgeCanvas.ThemeColor'.Success,
-                                            nod_pr_status_choice.Rejected,   'BadgeCanvas.ThemeColor'.Danger,
-                                            'BadgeCanvas.ThemeColor'.Subtle
-                                        )
+                              nod_pr_status_choice.Draft,          'BadgeCanvas.ThemeColor'.Subtle,
+                              nod_pr_status_choice.Submitted,      'BadgeCanvas.ThemeColor'.Brand,
+                              nod_pr_status_choice.'PMO Review',   'BadgeCanvas.ThemeColor'.Warning,
+                              nod_pr_status_choice.'IT Estimate',  'BadgeCanvas.ThemeColor'.Informative,
+                              nod_pr_status_choice.Approved,       'BadgeCanvas.ThemeColor'.Success,
+                              nod_pr_status_choice.Rejected,       'BadgeCanvas.ThemeColor'.Danger,
+                              'BadgeCanvas.ThemeColor'.Subtle
+                          )
                         Width: =100
                         X: =Parent.Width - 108
                         Y: =24
@@ -734,8 +720,9 @@ Screens:
                         Appearance: ='ButtonCanvas.Appearance'.Transparent
                         Height: =72
                         OnSelect: |-
-                          =Set(varSelectedRequestId, ThisItem.'IntakeID Request');
-                                        Navigate(scrReview, ScreenTransition.Fade)
+                          =Set(varProjectRec, LookUp('Project Intake Requests',
+                                nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                            Navigate(scrReview, ScreenTransition.Fade)
                         Text: =""
                         Width: =Parent.Width
       - cmpHeader_1:
@@ -790,6 +777,7 @@ Screens:
             {Key: "IT Estimate",  Label: "IT Estimate",    Value: "IT Estimate"},
             {Key: "UnderReview",  Label: "Under Review",   Value: "Under Review"},
             {Key: "Approved",     Label: "Approved",       Value: "Approved"},
+            {Key: "Submitted",    Label: "Submitted",      Value: "Submitted"},
             {Key: "Declined",     Label: "Declined",       Value: "Declined"}
         );
 
@@ -826,6 +814,19 @@ Screens:
             {Key: "Approved",    Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.Approved))},
             {Key: "Declined",    Count: CountRows(Filter(colMyRequests, 'Project Intake Status' = nod_pr_status_choice.Rejected))}
         );
+        ClearCollect(colMRFiltered,
+            Filter(
+                Switch(varMRSortBy,
+                    "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon", SortOrder.Descending),
+                    "CreatedDesc",  SortByColumns(colMyRequests, "createdon", SortOrder.Descending),
+                    "StatusAsc",    SortByColumns(colMyRequests, "nod_projectintakestatus", SortOrder.Ascending),
+                    colMyRequests
+                ),
+                varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
+                IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
+            )
+        );
+        Set(varMRVisible, varMRPageSize);
     Children:
       - cmpEmptyState_2:
           Control: CanvasComponent
@@ -877,9 +878,7 @@ Screens:
             RadiusBottomRight: =0
             RadiusTopLeft: =0
             RadiusTopRight: =0
-            Visible: |-
-              =true
-              //!IsEmpty(colMyRequests)
+            Visible: =!IsEmpty(colMyRequests)
             Width: =Parent.Width
             Y: =cmpHeader_2.Height + cmpPrimaryNav_2.Height
           Children:
@@ -992,7 +991,20 @@ Screens:
                         Height: =40
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
-                        OnChange: =Set(varMRSearch, Self.Text)
+                        OnChange: |-
+                          =Set(varMRSearch, Self.Text); ClearCollect(colMRFiltered,
+                              Filter(
+                                  Switch(varMRSortBy,
+                                      "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon", SortOrder.Descending),
+                                      "CreatedDesc",  SortByColumns(colMyRequests, "createdon", SortOrder.Descending),
+                                      "StatusAsc",    SortByColumns(colMyRequests, "nod_projectintakestatus", SortOrder.Ascending),
+                                      colMyRequests
+                                  ),
+                                  varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
+                                  IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
+                              )
+                          );
+                          Set(varMRVisible, varMRPageSize)
                         Placeholder: ="Search by title or category"
                         Type: =TextInputType.Search
             - cntMRSortRow:
@@ -1106,7 +1118,20 @@ Screens:
                               LayoutMinWidth: =120
                               OnChange: |-
                                 =Set(varMRSortBy, Self.Selected.Key);
-                                                      Set(varMRVisible, varMRPageSize)
+                                                      Set(varMRVisible, varMRPageSize);
+                                ClearCollect(colMRFiltered,
+                                    Filter(
+                                        Switch(varMRSortBy,
+                                            "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon", SortOrder.Descending),
+                                            "CreatedDesc",  SortByColumns(colMyRequests, "createdon", SortOrder.Descending),
+                                            "StatusAsc",    SortByColumns(colMyRequests, "nod_projectintakestatus", SortOrder.Ascending),
+                                            colMyRequests
+                                        ),
+                                        varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
+                                        IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
+                                    )
+                                );
+                                Set(varMRVisible, varMRPageSize)
                               RadiusBottomLeft: =gblTheme.RadiusSm
                               RadiusBottomRight: =gblTheme.RadiusSm
                               RadiusTopLeft: =gblTheme.RadiusSm
@@ -1118,21 +1143,7 @@ Screens:
                 Variant: BrowseLayout_Vertical_TwoTextOneImageVariant_ver5.0
                 Properties:
                   AlignInContainer: =AlignInContainer.SetByContainer
-                  Items: |-
-                    =FirstN(
-                                                Filter(
-                                                    Switch(
-                                                        varMRSortBy,
-                                                        "ModifiedDesc", SortByColumns(colMyRequests, "modifiedon",  SortOrder.Descending),
-                                                        "CreatedDesc",  SortByColumns(colMyRequests, "createdon",   SortOrder.Descending),
-                                                        "StatusAsc",    SortByColumns(colMyRequests, "statuscode",  SortOrder.Ascending),
-                                                        colMyRequests
-                                                    ),
-                                                    varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter,
-                                                    IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch)
-                                                ),
-                                                varMRVisible
-                                            )
+                  Items: =FirstN(colMRFiltered, varMRVisible)
                   LayoutMinHeight: =16
                   LayoutMinWidth: =16
                   TemplatePadding: =gblTheme.Space3
@@ -1166,72 +1177,7 @@ Screens:
                               Icon: ="Edit"
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
-                              OnSelect: |-
-                                =// ── 1. Pointer & UI identifiers ─────────────────────────────────────────
-                                                                Set(varProjectRec,        ThisItem);
-                                                                Set(varSelectedRequest,   ThisItem);
-                                                                Set(varSelectedRequestId, ThisItem.'IntakeID Request');
-
-                                                                // ── 2. Restore category state ───────────────────────────────────────────
-                                                                Set(varCategoryName,     Text(ThisItem.'Project Category'));
-                                                                Set(varSelectedCategory, ThisItem.'Project Category');
-
-                                                                // ── 3. Restore classification flags ─────────────────────────────────────
-                                                                Set(varHasSteeringTrigger, ThisItem.'Project Classification' = "Steering Committee Project");
-                                                                Set(varRequiresPMOTriage,  ThisItem.'Project Classification' = "PMO Triage");
-                                                                Set(varJDI,                ThisItem.'Project Classification' = "Just Do It");
-                                                                Set(varRevenuePriority,    ThisItem.'Revenue Priority Flag' = true);
-
-                                                                // ── 4. Ensure question/option cache is warm ──────────────────────────────
-                                                                If(
-                                                                    IsEmpty(colIntakeQuestions),
-                                                                    ClearCollect(colIntakeQuestions,
-                                                                        Filter('Intake Questions', 'Is Active' = true)
-                                                                    );
-                                                                    ClearCollect(colQuestionOptions, 'Intake Question Options')
-                                                                );
-
-                                                                // ── 5. Rebuild dynamic question list ────────────────────────────────────
-                                                                ClearCollect(colDynamicCategoryQuestions,
-                                                                    SortByColumns(
-                                                                        Filter(
-                                                                            colIntakeQuestions,
-                                                                            'Project Category' = ThisItem.'Project Category',
-                                                                            'Is Active' = true
-                                                                        ),
-                                                                        "nod_displayorder",
-                                                                        SortOrder.Ascending
-                                                                    )
-                                                                );
-
-                                                                // ── 6. Restore colDynamicAnswers from saved JSON ─────────────────────────
-                                                                Clear(colDynamicAnswers);
-                                                                Clear(colDynamicMultiAnswers);
-                                                                If(
-                                                                    !IsBlank(ThisItem.'Dynamic Answers'),
-                                                                    ForAll(
-                                                                        ParseJSON(ThisItem.'Dynamic Answers'),
-                                                                        Collect(colDynamicAnswers, {
-                                                                            QuestionId:    GUID(Text(ThisRecord.QuestionIdText)),
-                                                                            QuestionLabel: Text(ThisRecord.QuestionLabel),
-                                                                            AnswerText:    Text(ThisRecord.AnswerText),
-                                                                            AnswerBool:    Boolean(ThisRecord.AnswerBool),
-                                                                            AnswerDate:    If(
-                                                                                               IsBlank(Text(ThisRecord.AnswerDate)),
-                                                                                               Blank(),
-                                                                                               DateTimeValue(Text(ThisRecord.AnswerDate))
-                                                                                           )
-                                                                        })
-                                                                    )
-                                                                );
-
-                                                                // ── 7. Set wizard position & navigate ───────────────────────────────────
-                                                                Set(varWizardMode,        "Resume");
-                                                                Set(varWizardStep,        1);
-                                                                Set(varGateStep,          0);
-                                                                Set(varIntakeFormVisible, false);
-                                                                Set(varTriggerScrollReset, true);
-                                                                Navigate(scrIntakeWizard, ScreenTransition.Fade)
+                              OnSelect: "=// ── 1. Pointer & UI identifiers ─────────────────────────────────────────\r\n                                Set(varProjectRec,        ThisItem);\r\n                                Set(varSelectedRequest,   ThisItem);\r\n\r\n                                // ── 2. Restore category state ───────────────────────────────────────────\r\n                                Set(varCategoryName,     Text(ThisItem.'Project Category'));\r\n                                Set(varSelectedCategory, ThisItem.'Project Category');\r\n\r\n                                // ── 3. Restore classification flags ─────────────────────────────────────\r\n                                Set(varHasSteeringTrigger, ThisItem.'Project Classification' = \"Steering Committee Project\");\r\n                                Set(varRequiresPMOTriage,  ThisItem.'Project Classification' = \"PMO Triage\");\r\n                                Set(varJDI,                ThisItem.'Project Classification' = \"Just Do It\");\r\n                                Set(varRevenuePriority,    ThisItem.'Revenue Priority Flag' = true);\r\n\r\n            \r\n                                // ── 5. Rebuild dynamic question list ────────────────────────────────────\r\n                                ClearCollect(colDynamicCategoryQuestions,\r\n                                    SortByColumns(\r\n                                        Filter(\r\n                                            colIntakeQuestions,\r\n                                            'Project Category' = ThisItem.'Project Category',\r\n                                            'Is Active' = true\r\n                                        ),\r\n                                        \"nod_displayorder\",\r\n                                        SortOrder.Ascending\r\n                                    )\r\n                                );\r\n\r\n                                // ── 6. Restore colDynamicAnswers from saved JSON ─────────────────────────\r\n                                Clear(colDynamicAnswers);\r\n                                Clear(colDynamicMultiAnswers);\r\n                                If(\r\n                                    !IsBlank(ThisItem.'Dynamic Answers'),\r\n                                    ForAll(\r\n                                        ParseJSON(ThisItem.'Dynamic Answers'),\r\n                                        Collect(colDynamicAnswers, {\r\n                                            QuestionId:    GUID(Text(ThisRecord.QuestionIdText)),\r\n                                            QuestionLabel: Text(ThisRecord.QuestionLabel),\r\n                                            AnswerText:    Text(ThisRecord.AnswerText),\r\n                                            AnswerBool:    Boolean(ThisRecord.AnswerBool),\r\n                                            AnswerDate:    If(\r\n                                                               IsBlank(Text(ThisRecord.AnswerDate)),\r\n                                                               Blank(),\r\n                                                               DateTimeValue(Text(ThisRecord.AnswerDate))\r\n                                                           )\r\n                                        })\r\n                                    )\r\n                                );\r\n\r\n                                // ── 7. Set wizard position & navigate ───────────────────────────────────\r\n                                Set(varWizardMode,        \"Resume\");\r\n                                Set(varWizardStep,        1);\r\n                                Set(varGateStep,          0);\r\n                                Set(varIntakeFormVisible, false);\r\n                                Set(varTriggerScrollReset, true);\r\n                                Navigate(scrIntakeWizard, ScreenTransition.Fade)"
                               Text: ="Resume draft"
                               Visible: =ThisItem.'Project Intake Status' = nod_pr_status_choice.Draft
                               Width: =140
@@ -1245,26 +1191,26 @@ Screens:
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
                               OnSelect: |-
-                                =Set(varSelectedRequest,  ThisItem);
-                                                                Set(varProjectRec,        ThisItem);
-                                                                Set(varSelectedRequestId, ThisItem.'IntakeID Request');
-                                                                Set(varReviewConfirmed,   false);
-                                                                ClearCollect(colReviewBasics,
-                                                                    { Label: "Request Title", Value: ThisItem.'Request Title' },
-                                                                    { Label: "Sponsor",       Value: ThisItem.'Sponsor Name' },
-                                                                    { Label: "Problem",       Value: ThisItem.'What problem are you trying to solve?' },
-                                                                    { Label: "Category",      Value: Text(ThisItem.'Project Category') }
-                                                                );
-                                                                ClearCollect(colReviewBenefits,
-                                                                    { Label: "Benefit Amount", Value: Text(ThisItem.'Benefit Amount', "$#,##0") },
-                                                                    { Label: "Benefit Score",  Value: Text(ThisItem.'Benefit Score') }
-                                                                );
-                                                                ClearCollect(colReviewGovernance,
-                                                                    { Label: "Classification",    Value: Text(ThisItem.'Project Classification') },
-                                                                    { Label: "Revenue Priority",  Value: If(ThisItem.'Revenue Priority Flag' = true, "Yes", "No") },
-                                                                    { Label: "IT Systems",        Value: Concat(ThisItem.'IT Systems Impacted', Value, ", ") }
-                                                                );
-                                                                Navigate(scrReview, ScreenTransition.Fade)
+                                =Set(varSelectedRequest, LookUp('Project Intake Requests',
+                                    nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                                Set(varProjectRec, varSelectedRequest);
+                                Set(varReviewConfirmed,   false);
+                                ClearCollect(colReviewBasics,
+                                    { Label: "Request Title", Value: ThisItem.'Request Title' },
+                                    { Label: "Sponsor",       Value: ThisItem.'Sponsor Name' },
+                                    { Label: "Problem",       Value: ThisItem.'What problem are you trying to solve?' },
+                                    { Label: "Category",      Value: Text(ThisItem.'Project Category') }
+                                    );
+                                   ClearCollect(colReviewBenefits,
+                                    { Label: "Benefit Amount", Value: Text(ThisItem.'Benefit Amount', "$#,##0") },
+                                    { Label: "Benefit Score",  Value: Text(ThisItem.'Benefit Score') }
+                                    );
+                                   ClearCollect(colReviewGovernance,
+                                       { Label: "Classification",    Value: Text(ThisItem.'Project Classification') },
+                                       { Label: "Revenue Priority",  Value: If(ThisItem.'Revenue Priority Flag' = true, "Yes", "No") },
+                                       { Label: "IT Systems",        Value: Concat(ThisItem.'IT Systems Impacted', Value, ", ") }
+                                    );
+                                  Navigate(scrReview, ScreenTransition.Fade)
                               Text: ="View details"
                               Width: =140
                   - txtMeta:
@@ -1332,7 +1278,16 @@ Screens:
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
                               Shape: ='BadgeCanvas.Shape'.Rounded
-                              ThemeColor: =Switch(ThisItem.'Project Intake Status', nod_pr_status_choice.Draft, 'BadgeCanvas.ThemeColor'.Subtle, nod_pr_status_choice.'IT Estimate', 'BadgeCanvas.ThemeColor'.Informative, nod_pr_status_choice.Approved, 'BadgeCanvas.ThemeColor'.Success, nod_pr_status_choice.Rejected, 'BadgeCanvas.ThemeColor'.Danger, 'BadgeCanvas.ThemeColor'.Subtle)
+                              ThemeColor: |-
+                                =Switch(ThisItem.'Project Intake Status',
+                                    nod_pr_status_choice.Draft,          'BadgeCanvas.ThemeColor'.Subtle,
+                                    nod_pr_status_choice.Submitted,      'BadgeCanvas.ThemeColor'.Brand,
+                                    nod_pr_status_choice.'PMO Review',   'BadgeCanvas.ThemeColor'.Warning,
+                                    nod_pr_status_choice.'IT Estimate',  'BadgeCanvas.ThemeColor'.Informative,
+                                    nod_pr_status_choice.Approved,       'BadgeCanvas.ThemeColor'.Success,
+                                    nod_pr_status_choice.Rejected,       'BadgeCanvas.ThemeColor'.Danger,
+                                    'BadgeCanvas.ThemeColor'.Subtle
+                                )
                         - txtModified:
                             Control: ModernText@1.0.0
                             Properties:
@@ -1357,10 +1312,10 @@ Screens:
                         BorderColor: =gblTheme.ColorBorder
                         BorderThickness: =1
                         Fill: |-
-                          =Switch(ThisItem.'Project Classification',
-                              "Steering Committee Project", gblTheme.ColorClassSteering,
-                              "PMO Triage",                 gblTheme.ColorClassPMO,
-                              "Just Do It",                 gblTheme.ColorClassJDI,
+                          =Switch(ThisItem.'Auto-Classified Outcome',
+                              'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project', gblTheme.ColorClassSteering,
+                              'Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage',       gblTheme.ColorClassPMO,
+                              'Auto-Classified Outcome (Project Intake Requests)'.'Just Do It',       gblTheme.ColorClassJDI,
                               gblTheme.ColorBorder
                           )
                         Height: =Parent.TemplateHeight - gblTheme.Space2 * 2
@@ -1377,11 +1332,7 @@ Screens:
                   Height: =40
                   LayoutMaxWidth: =160
                   OnSelect: =Set(varMRVisible, varMRVisible + varMRPageSize)
-                  Visible: |-
-                    =varMRVisible < CountIf(colMyRequests,
-                        (varMRFilter = "All" Or Text('Project Intake Status') = varMRFilter)
-                        And (IsBlank(varMRSearch) Or StartsWith('Request Title', varMRSearch))
-                    )
+                  Visible: =varMRVisible < CountRows(colMRFiltered)
                   Width: =160
                   X: =(Parent.Width - Self.Width) / 2
                   Y: =galMRResults.Y + galMRResults.Height + gblTheme.Space3
@@ -1392,14 +1343,7 @@ Screens:
             CurrentScreen: ="requests"
             Fill: =gblTheme.ColorBrandPrimary
             Height: =48
-            NavItems: |-
-              =Table(
-                  { Key: "home",        Label: "Home",        IconName: "Home",        ScreenName: "scrHome",         BadgeCount: 0, Show: true },
-                  { Key: "requestform", Label: "Intake Form",  IconName: "AddDocument", ScreenName: "scrIntakeWizard", BadgeCount: 0, Show: true },
-                  { Key: "requests",    Label: "My Requests",  IconName: "Tray",        ScreenName: "scrMyRequests",   BadgeCount: 0, Show: true },
-                  { Key: "queue",       Label: "PMO Queue",    IconName: "Search",      ScreenName: "scrPMOQueue",     BadgeCount: 0, Show: varIsPMO Or varIsAdmin },
-                  { Key: "itestimate",  Label: "IT Estimate",  IconName: "Notebook",    ScreenName: "scrITEstimate",   BadgeCount: 0, Show: varIsITEstimateManager Or varIsAdmin }
-              )
+            NavItems: =colNavItems
             OnNavItemSelect: |-
               =Switch(SelectedKey,
                                 "home",        Navigate(scrHome,         ScreenTransition.Fade),
@@ -1431,13 +1375,17 @@ Screens:
       Fill: =gblTheme.ColorSurfaceAlt
       OnVisible: |-
         =If(
-            varWizardMode = "Resume",
-            Set(varCategoryStepValid, false);   // ← ADD: reset validity for resumed record
-            If(
-                IsEmpty(colIntakeQuestions),
-                ClearCollect(colIntakeQuestions, Filter('Intake Questions', 'Is Active' = true))
-            )
-        ,
+            varWizardMode = "Resume" And !IsBlank(varProjectRec),
+            Set(varCategoryName, Text(varProjectRec.'Project Category'));
+            Set(varSelectedCategory, varProjectRec.'Project Category');
+            ClearCollect(
+                colDynamicCategoryQuestions,
+                SortByColumns(
+                    Filter(colIntakeQuestions, 'Project Category' = varProjectRec.'Project Category', 'Is Active' = true),
+                    "nod_displayorder",
+                    SortOrder.Ascending
+                )
+            ),
             // New request path — full reset
             Concurrent(
                 Set(varWizardStep,         0),
@@ -1456,12 +1404,11 @@ Screens:
                 Set(varSelectedCategory,   Blank()),
                 Set(varSubCategory,        Blank()),
                 Set(varSubCategoryConfirmed, false),
-                Set(varCategoryStepValid,  false),
                 Set(varWizardMode, "Create"),
                 Clear(colDynamicAnswers),
                 Clear(colDynamicMultiAnswers)
             )
-        )
+            )
     Children:
       - cntIntakeShell:
           Control: GroupContainer@1.5.0
@@ -1578,7 +1525,7 @@ Screens:
                                   Properties:
                                     Content: |-
                                       =Switch(true,
-                                                varHasSteeringTrigger, "Steering Committee",
+                                                varHasSteeringTrigger, "Standard Project",
                                                 varRequiresPMOTriage,  "PMO Triage",
                                                 varJDI,                "Just Do It",
                                                 varRevenuePriority,    "Revenue Priority",
@@ -1764,7 +1711,8 @@ Screens:
                                           LayoutMinHeight: =52
                                           LayoutMinWidth: =16
                                           OnSelect: |-
-                                            =Switch(
+                                            =Set(varGateCurrentAnswer, "No");
+                                            Switch(
                                                     varGateStep,
                                                     0, Set(varGateAnswer_Q0, "No"),
                                                     1, Set(varGateAnswer_Q1, "No"),
@@ -1919,11 +1867,7 @@ Screens:
                                           Height: =52
                                           LayoutMinHeight: =52
                                           LayoutMinWidth: =16
-                                          OnSelect: |-
-                                            =Set(varGateAnswer_Q3, "Days");
-                                                      Set(varJDI, true);
-                                                      Set(varHasSteeringTrigger, false);
-                                                      Set(varRequiresPMOTriage, false)
+                                          OnSelect: =Set(varGateAnswer_Q3, "Days")
                                           Text: ="Days"
                                           Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
                                     - btnWeeks:
@@ -1950,11 +1894,7 @@ Screens:
                                           Height: =52
                                           LayoutMinHeight: =52
                                           LayoutMinWidth: =16
-                                          OnSelect: |-
-                                            =Set(varGateAnswer_Q3, "Weeks");
-                                                      Set(varRequiresPMOTriage, true);
-                                                      Set(varHasSteeringTrigger, false);
-                                                      Set(varJDI, false)
+                                          OnSelect: =Set(varGateAnswer_Q3, "Weeks")
                                           Text: ="Weeks"
                                           Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
                                     - btnMonths:
@@ -1981,11 +1921,7 @@ Screens:
                                           Height: =52
                                           LayoutMinHeight: =52
                                           LayoutMinWidth: =16
-                                          OnSelect: |-
-                                            =Set(varGateAnswer_Q3, "Months");
-                                                      Set(varHasSteeringTrigger, true);
-                                                      Set(varJDI, false);
-                                                      Set(varRequiresPMOTriage, false)
+                                          OnSelect: =Set(varGateAnswer_Q3, "Months")
                                           Text: ="Months"
                                           Width: =(Parent.Width - gblTheme.Space3 * 2) / 3
                   - conGateNav:
@@ -2024,18 +1960,15 @@ Screens:
                                     4, Set(varGateAnswer_Q4, ""); Set(varGateStep, 3)
                                 );
                                 // Re-derive flags from answers that still have values
-                                Set(varHasSteeringTrigger,
-                                    varGateAnswer_Q1 = "Yes"
-                                    Or varGateAnswer_Q2 = "Low" Or varGateAnswer_Q2 = "Medium"
-                                    Or varGateAnswer_Q3 = "Months"
-                                );
-                                Set(varRequiresPMOTriage,
-                                    Not(varHasSteeringTrigger) And varGateAnswer_Q3 = "Weeks"
-                                );
-                                Set(varJDI,
-                                    Not(varHasSteeringTrigger)
-                                    And Not(varRequiresPMOTriage)
-                                    And (varGateAnswer_Q2 = "High" Or varGateAnswer_Q3 = "Days")
+                                With(
+                                    {
+                                        _triggerCount:
+                                            (If(varGateAnswer_Q2 = "Medium" Or varGateAnswer_Q2 = "Low", 1, 0))
+                                            + (If(varGateAnswer_Q3 = "Months", 1, 0))
+                                    },
+                                    Set(varHasSteeringTrigger, _triggerCount >= 2);
+                                    Set(varRequiresPMOTriage,  _triggerCount = 1);
+                                    Set(varJDI,                _triggerCount = 0)
                                 );
                                 Set(varRevenuePriority, varGateAnswer_Q4 = "Yes")
                               Text: ="Back"
@@ -2079,7 +2012,6 @@ Screens:
                                                                     1,
                                                                     If(
                                                                         varGateAnswer_Q1 = "Yes",
-                                                                        Set(varHasSteeringTrigger, true);
                                                                         Set(varGateStep, 2);
                                                                         Set(varGateAnswer_Q2, ""),
                                                                         Set(varHasSteeringTrigger, false);
@@ -2089,44 +2021,28 @@ Screens:
 
                                                                     // Q2: Clarity?
                                                                     2,
-                                                                    If(
-                                                                        varGateAnswer_Q2 = "High",
-                                                                        Set(varHasSteeringTrigger, false);
-                                                                        Set(varJDI,                true);
-                                                                        Set(varRequiresPMOTriage,  false);
-                                                                        Set(varGateStep, 3);
-                                                                        Set(varGateAnswer_Q3, ""),
-                                                                        Set(varHasSteeringTrigger, true);
-                                                                        Set(varJDI,                false);
-                                                                        Set(varRequiresPMOTriage,  false);
-                                                                        Set(varGateStep, 3);
-                                                                        Set(varGateAnswer_Q3, "")
-                                                                    ),
+                                Set(varGateStep, 3);
+                                Set(varGateAnswer_Q3, ""),
 
                                                                     // Q3: Duration?
                                                                     3,
-                                                                    Switch(
-                                                                        varGateAnswer_Q3,
-                                                                        "Days",
-                                                                        Set(varJDI,                true);
-                                                                        Set(varHasSteeringTrigger, false);
-                                                                        Set(varRequiresPMOTriage,  false);
-                                                                        Set(varGateStep, 4);
-                                                                        Set(varGateAnswer_Q4, ""),
-                                                                        "Weeks",
-                                                                        Set(varJDI,                false);
-                                                                        Set(varHasSteeringTrigger, false);
-                                                                        Set(varRequiresPMOTriage,  true);
-                                                                        Set(varGateStep, 4);
-                                                                        Set(varGateAnswer_Q4, ""),
-                                                                        "Months",
-                                                                        Set(varJDI,                false);
-                                                                        Set(varHasSteeringTrigger, true);
-                                                                        Set(varRequiresPMOTriage,  false);
-                                                                        Set(varGateStep, 4);
-                                                                        Set(varGateAnswer_Q4, ""),
-                                                                        Notify("Please select a duration.", NotificationType.Error)
-                                                                    ),
+                                If(
+                                    varGateAnswer_Q3 = "",
+                                    Notify("Please select a duration.", NotificationType.Error),
+
+                                    With(
+                                        {
+                                            _triggerCount:
+                                                (If(varGateAnswer_Q2 = "Medium" Or varGateAnswer_Q2 = "Low", 1, 0))
+                                                + (If(varGateAnswer_Q3 = "Months", 1, 0))
+                                        },
+                                        Set(varHasSteeringTrigger, _triggerCount >= 2);
+                                        Set(varRequiresPMOTriage,  _triggerCount = 1);
+                                        Set(varJDI,                _triggerCount = 0);
+                                        Set(varGateStep, 4);
+                                        Set(varGateAnswer_Q4, "")
+                                    )
+                                ),
 
                                                                     // Q4: Revenue? (final — advance to form)
                                                                     4,
@@ -2243,7 +2159,7 @@ Screens:
                                     - txtRequestTitle:
                                         Control: ModernTextInput@1.1.0
                                         Properties:
-                                          Default: =
+                                          Default: =If(varWizardMode = "Resume" And !IsBlank(varProjectRec), varProjectRec.'Request Title', "")
                                           Fill: =gblTheme.ColorSurface
                                           Height: =36
                                           LayoutMinHeight: =16
@@ -2278,7 +2194,7 @@ Screens:
                                     - txtRequestSponsor:
                                         Control: ModernTextInput@1.1.0
                                         Properties:
-                                          Default: =
+                                          Default: =If(varWizardMode = "Resume" And !IsBlank(varProjectRec), varProjectRec.'Sponsor Name', "")
                                           Fill: =gblTheme.ColorSurface
                                           Height: =36
                                           LayoutMinHeight: =16
@@ -2313,6 +2229,12 @@ Screens:
                                     - ddProjectCategory:
                                         Control: ModernCombobox@1.1.0
                                         Properties:
+                                          DefaultSelectedItems: |-
+                                            =If(
+                                                  varWizardMode = "Resume" And !IsBlank(varProjectRec),
+                                                  Filter(gblChoices.ProjectCategory, Value = varProjectRec.'Project Category'),
+                                                  Blank()
+                                              )
                                           Fill: =gblTheme.ColorSurface
                                           Height: =36
                                           ItemDisplayText: =ThisItem.Value
@@ -2328,7 +2250,6 @@ Screens:
                                             Set(varSelectedCategory, ddProjectCategory.Selected.Value);
                                             Set(varSubCategory, Blank());
                                             Set(varSubCategoryConfirmed, false);
-                                            Set(varCategoryStepValid, false);
                                             Clear(colDynamicAnswers);
                                             ClearCollect(
                                                 colDynamicCategoryQuestions,
@@ -2372,6 +2293,12 @@ Screens:
                                     - ddITSystems:
                                         Control: ModernCombobox@1.1.0
                                         Properties:
+                                          DefaultSelectedItems: |-
+                                            =If(
+                                                  varWizardMode = "Resume" And !IsBlank(varProjectRec),
+                                                  varProjectRec.'IT Systems Impacted',
+                                                  Blank()
+                                              )
                                           Fill: =gblTheme.ColorSurface
                                           Height: =36
                                           ItemDisplayText: =ThisItem.Value
@@ -2408,7 +2335,7 @@ Screens:
                                     - txtBenefitAmount:
                                         Control: ModernTextInput@1.1.0
                                         Properties:
-                                          Default: =
+                                          Default: =If(varWizardMode = "Resume" And !IsBlank(varProjectRec), Text(varProjectRec.'Benefit Amount'), "")
                                           Fill: =gblTheme.ColorSurface
                                           Height: =36
                                           LayoutMinHeight: =16
@@ -2446,15 +2373,14 @@ Screens:
                                           BasePaletteColor: =gblTheme.ColorSurfaceAlt
                                           Content: |-
                                             =Switch(
-                                                true,
-                                                IsBlank(txtBenefitAmount.Text),         "—",
-                                                Value(txtBenefitAmount.Text) <= 25000,  "2",
-                                                Value(txtBenefitAmount.Text) <= 50000,  "4",
-                                                Value(txtBenefitAmount.Text) <= 100000, "6",
-                                                Value(txtBenefitAmount.Text) <= 250000, "8",
-                                                Value(txtBenefitAmount.Text) > 250000,  "10",
-                                                "0"
-                                            )
+                                                  true,
+                                                  IsBlank(txtBenefitAmount.Text) Or IsError(Value(txtBenefitAmount.Text)), "—",
+                                                  Value(txtBenefitAmount.Text) <= 25000,  "2",
+                                                  Value(txtBenefitAmount.Text) <= 50000,  "4",
+                                                  Value(txtBenefitAmount.Text) <= 100000, "6",
+                                                  Value(txtBenefitAmount.Text) <= 250000, "8",
+                                                  "10"
+                                              )
                                           DisplayMode: =DisplayMode.View
                                           FontSize: =gblTheme.FontSizeBody
                                           FontWeight: =FontWeight.Semibold
@@ -2634,6 +2560,15 @@ Screens:
                                   Properties:
                                     BorderColor: =gblTheme.ColorBorder
                                     Color: =gblTheme.ColorTextPrimary
+                                    DefaultSelectedItems: |-
+                                      =If(
+                                            varWizardMode = "Resume",
+                                            Filter(
+                                                Filter(colQuestionOptions, Question.'Intake Question' = ThisItem.'Intake Question'),
+                                                'Option Value' in Split(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question').AnswerText, "|")
+                                            ),
+                                            Blank()
+                                        )
                                     Fill: =gblTheme.ColorSurface
                                     Height: =44
                                     ItemDisplayText: =ThisItem.'Option Label'
@@ -2679,15 +2614,6 @@ Screens:
                                           ),
                                           Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
                                       );
-                                      Set(varCategoryStepValid,
-                                          CountRows(
-                                              Filter(
-                                                  colDynamicCategoryQuestions,
-                                                  'Is Required' = true &&
-                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
-                                              )
-                                          ) = 0
-                                      );
                                     RadiusBottomLeft: =gblTheme.RadiusMd
                                     RadiusBottomRight: =gblTheme.RadiusMd
                                     RadiusTopLeft: =gblTheme.RadiusMd
@@ -2728,6 +2654,7 @@ Screens:
                                   Properties:
                                     BorderColor: =gblTheme.ColorBorder
                                     Color: =gblTheme.ColorTextPrimary
+                                    Default: =LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question').AnswerText
                                     Fill: =gblTheme.ColorSurface
                                     Height: =44
                                     OnChange: |-
@@ -2749,15 +2676,6 @@ Screens:
                                           ),
                                           Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
                                       );
-                                      Set(varCategoryStepValid,
-                                          CountRows(
-                                              Filter(
-                                                  colDynamicCategoryQuestions,
-                                                  'Is Required' = true &&
-                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
-                                              )
-                                          ) = 0
-                                      )
                                     PaddingLeft: =12
                                     PaddingRight: =12
                                     Placeholder: =ThisItem.'Hint Text'
@@ -2773,6 +2691,7 @@ Screens:
                                   Properties:
                                     BorderColor: =gblTheme.ColorBorder
                                     Color: =gblTheme.ColorTextPrimary
+                                    Default: =LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question').AnswerText
                                     Fill: =gblTheme.ColorSurface
                                     Height: =44
                                     OnChange: |-
@@ -2793,15 +2712,6 @@ Screens:
                                           ),
                                           Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
                                       );
-                                      Set(varCategoryStepValid,
-                                          CountRows(
-                                              Filter(
-                                                  colDynamicCategoryQuestions,
-                                                  'Is Required' = true &&
-                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
-                                              )
-                                          ) = 0
-                                      )
                                     PaddingLeft: =12
                                     PaddingRight: =12
                                     Placeholder: =ThisItem.'Hint Text'
@@ -2813,7 +2723,7 @@ Screens:
                                     Width: =Parent.Width/2
                                     Y: =If(!IsBlank(ThisItem.'Section Label'), 48, 24)
                               - ddDynamicDropdown:
-                                  Control: ModernDropdown@1.0.0
+                                  Control: ModernDropdown@1.0.1
                                   Properties:
                                     BorderColor: =gblTheme.ColorBorder
                                     Color: =gblTheme.ColorTextPrimary
@@ -2825,7 +2735,7 @@ Screens:
                                           colQuestionOptions,
                                           Question.'Intake Question' = ThisItem.'Intake Question'
                                       )
-                                    OnChange: |
+                                    OnChange: |-
                                       =
                                       IfError(
                                                                                       If(
@@ -2847,15 +2757,7 @@ Screens:
                                                                                           )
                                                                                       ),
                                                                                       Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
-                                                                                  ); Set(varCategoryStepValid,
-                                          CountRows(
-                                              Filter(
-                                                  colDynamicCategoryQuestions,
-                                                  'Is Required' = true &&
-                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
-                                              )
-                                          ) = 0
-                                      );
+                                                                                  );
                                     RadiusBottomLeft: =gblTheme.RadiusMd
                                     RadiusBottomRight: =gblTheme.RadiusMd
                                     RadiusTopLeft: =gblTheme.RadiusMd
@@ -2869,41 +2771,7 @@ Screens:
                                     BorderColor: =gblTheme.ColorBorder
                                     Fill: =gblTheme.ColorSurface
                                     Height: =44
-                                    OnChange: |
-                                      =
-                                      IfError(
-                                                                                      If(
-                                                                                          IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question')),
-                                                                                          Collect(
-                                                                                              colDynamicAnswers,
-                                                                                              {
-                                                                                                  QuestionId:    ThisItem.'Intake Question',
-                                                                                                  QuestionLabel: ThisItem.'Question Label',
-                                                                                                  AnswerText:    Text(Self.SelectedDate, "[$-en-US]yyyy-mm-dd"),
-                                                                                                  AnswerBool:    false,
-                                                                                                  AnswerDate:    Self.SelectedDate
-                                                                                              }
-                                                                                          ),
-                                                                                          Patch(
-                                                                                              colDynamicAnswers,
-                                                                                              LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'),
-                                                                                              {
-                                                                                                  AnswerDate: Self.SelectedDate,
-                                                                                                  AnswerText: Text(Self.SelectedDate, "[$-en-US]yyyy-mm-dd")
-                                                                                              }
-                                                                                          )
-                                                                                      ),
-                                                                                      Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
-                                                                                  );
-                                                                                  Set(varCategoryStepValid,
-                                          CountRows(
-                                              Filter(
-                                                  colDynamicCategoryQuestions,
-                                                  'Is Required' = true &&
-                                                  IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
-                                              )
-                                          ) = 0
-                                      );
+                                    OnChange: "=\nIfError(\n                                                If(\n                                                    IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question')),\n                                                    Collect(\n                                                        colDynamicAnswers,\n                                                        {\n                                                            QuestionId:    ThisItem.'Intake Question',\n                                                            QuestionLabel: ThisItem.'Question Label',\n                                                            AnswerText:    Text(Self.SelectedDate, \"[$-en-US]yyyy-mm-dd\"),\n                                                            AnswerBool:    false,\n                                                            AnswerDate:    Self.SelectedDate\n                                                        }\n                                                    ),\n                                                    Patch(\n                                                        colDynamicAnswers,\n                                                        LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'),\n                                                        {\n                                                            AnswerDate: Self.SelectedDate,\n                                                            AnswerText: Text(Self.SelectedDate, \"[$-en-US]yyyy-mm-dd\")\n                                                        }\n                                                    )\n                                                ),\n                                                Notify(\"Warning: Answer may not have saved. Please try again.\", NotificationType.Warning)\n                                            );\n                                        \n"
                                     Visible: =ThisItem.'Question Type' = 'Question Type (Intake Questions)'.Date
                                     Width: =Parent.Width/2
                                     Y: =If(!IsBlank(ThisItem.'Section Label'), 48, 24)
@@ -2927,11 +2795,7 @@ Screens:
                                         Control: ModernRadio@1.0.0
                                         Properties:
                                           Height: =44
-                                          Items: |-
-                                            =Table(
-                                                {Value: "Yes"},
-                                                {Value: "No"}
-                                            )
+                                          Items: =Table({Value:"Yes"},{Value:"No"})
                                           Layout: =OptionLayout.Horizontal
                                           LayoutMinHeight: =16
                                           LayoutMinWidth: =16
@@ -2957,15 +2821,6 @@ Screens:
                                                 ),
                                                 Notify("Warning: Answer may not have saved. Please try again.", NotificationType.Warning)
                                             );
-                                            Set(varCategoryStepValid,
-                                                CountRows(
-                                                    Filter(
-                                                        colDynamicCategoryQuestions,
-                                                        'Is Required' = true &&
-                                                        IsBlank(LookUp(colDynamicAnswers, QuestionId = ThisItem.'Intake Question'))
-                                                    )
-                                                ) = 0
-                                            )
             - cntMainFormNav:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
@@ -3016,7 +2871,7 @@ Screens:
                       Properties:
                         Appearance: ='ButtonCanvas.Appearance'.Secondary
                         BasePaletteColor: =gblTheme.ColorTextPrimary
-                        DisplayMode: =If(IsBlank(txtRequestTitle.Text), DisplayMode.Disabled, DisplayMode.Edit)
+                        DisplayMode: =If(IsBlank(txtRequestTitle.Text) Or IsBlank(txtBenefitAmount.Text), DisplayMode.Disabled, DisplayMode.Edit)
                         FillPortions: =1
                         Icon: ="Save"
                         IconStyle: ="Filled"
@@ -3043,6 +2898,11 @@ Screens:
                                                   'What problem are you trying to solve?': txtBusinessProblem.Text,
                                                   'Project Category':                      ddProjectCategory.Selected.Value,
                                                   'Project Intake Status':                 nod_pr_status_choice.Draft,
+                                                  'Auto-Classified Outcome': Switch(true,
+                              varJDI,               'Auto-Classified Outcome (Project Intake Requests)'.'Just Do It',
+                              varRequiresPMOTriage, 'Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage',
+                              'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project'
+                          ),
                                                   nod_SubmittedBy:                         varAppUser.'Email Address (emailaddress)',
                                                   'Dynamic Answers':                       JSON(
                                                       ForAll(
@@ -3095,7 +2955,7 @@ Screens:
                                   DisplayMode.Disabled,
                                   DisplayMode.Edit
                               ),
-                              If(varCategoryStepValid, DisplayMode.Edit, DisplayMode.Disabled)
+                              If(varCategoryStepValid, DisplayMode.Edit Or IsBlank(txtBenefitAmount.Text), DisplayMode.Disabled)
                           )
                         FillPortions: =1
                         Height: =40
@@ -3120,6 +2980,11 @@ Screens:
                                           'Sponsor Name':                          txtRequestSponsor.Text,
                                           'What problem are you trying to solve?': txtBusinessProblem.Text,
                                           'Project Category':                      ddProjectCategory.Selected.Value,
+                                          'Auto-Classified Outcome': Switch(true,
+                              varJDI,               'Auto-Classified Outcome (Project Intake Requests)'.'Just Do It',
+                              varRequiresPMOTriage, 'Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage',
+                              'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project'
+                          ),
                                           'IT Systems Impacted':                   ddITSystems.SelectedItems,
                                           'Benefit Amount':
                                               If(
@@ -3165,7 +3030,7 @@ Screens:
                                       ) > 0,
 
                                       // Questions exist — advance to category step
-                                      Set(varCategoryStepValid, false);
+                                      varCategoryStepValid;
                                       Set(varWizardStep, 2),
 
                                       // No questions — refresh record and go to review
@@ -3317,7 +3182,7 @@ Screens:
             Height: =56
             OnBackSelect: =
             ShowBackButton: =true
-            Title: '="New Request" '
+            Title: =If(varWizardMode = "Resume", "Edit Draft", "New Request")
             Width: =Parent.Width
 Screens:
   scrITEstimate:
@@ -3327,34 +3192,34 @@ Screens:
       OnVisible: |-
         =Set(varRedirectToHome, false);
 
-        If(
-            Not(varAppReady),
-            true,
-            If(
-                Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
-                Set(varRedirectToHome, true),
-                Set(varRedirectToHome, false);
-                Concurrent(
-                    ClearCollect(colEstimateQueue,
-                        Filter('Project Intake Requests',
-                            'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.Received
-                            Or 'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.'In Review'
+                If(
+                    Not(varAppReady),
+                    true,
+                    If(
+                        Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
+                        Set(varRedirectToHome, true),
+                        Set(varRedirectToHome, false);
+                        Concurrent(
+                            ClearCollect(colEstimateQueue,
+                                Filter('Project Intake Requests',
+                                    'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.Received
+                                    Or 'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.'In Review'
+                                )
+                            ),
+                            Set(varProjectRec,        Blank()),
+                            Set(varITEstimate,        Blank()),
+                            Set(varShowContactPanel,  false),
+                            Set(varShowNotesPanel,    false),
+                            Set(varShowRequestPicker, false),
+                            Set(varEstimateHours,     ""),
+                            Set(varEstimateSystems,   ""),
+                            Set(varEffortScore,       0),
+                            Set(varEffortLabel,       ""),
+                            Set(varEstimateNotesText, ""),
+                            Set(varITEstimateMode,    "edit")
                         )
-                    ),
-                    Set(varProjectRec,        Blank()),
-                    Set(varITEstimate,        Blank()),
-                    Set(varShowContactPanel,  false),
-                    Set(varShowNotesPanel,    false),
-                    Set(varShowRequestPicker, false),
-                    Set(varEstimateHours,     ""),
-                    Set(varEstimateSystems,   ""),
-                    Set(varEffortScore,       0),
-                    Set(varEffortLabel,       ""),
-                    Set(varEstimateNotesText, ""),
-                    Set(varITEstimateMode,    "edit")
+                    )
                 )
-            )
-        )
       Width: =App.Width
     Children:
       - conCommandBar:
@@ -3452,18 +3317,19 @@ Screens:
                   IconStyle: =IconStyle.Filled
                   LayoutMinHeight: =16
                   LayoutMinWidth: =16
-                  OnSelect: |
+                  OnSelect: |-
                     =Set(varEstimateInputSelect, true);
 
+                    // ── Reset all estimate input fields ──────────────────────────────────────────
                     Reset(radEstimateHours);
                     Reset(radEstimateITSystems);
                     Reset(dtpStartMonth);
 
-                    Set(varEstimateHours, Blank());
-                    Set(varEstimateSystems, Blank());
+                    Set(varEstimateHours,     Blank());
+                    Set(varEstimateSystems,   Blank());
                     Set(varEstimateStartMonth, Blank());
-                    Set(varEffortScore, 0);
-                    Set(varEffortLabel, Blank());
+                    Set(varEffortScore,       0);
+                    Set(varEffortLabel,       Blank())
                   Size: =14
                   Text: ="Input Estimate"
                   Width: =150
@@ -3486,6 +3352,7 @@ Screens:
                   LayoutMinWidth: =16
                   OnSelect: |-
                     =Set(varIsSubmitting, true);
+
                     IfError(
                         With(
                             {
@@ -3503,26 +3370,33 @@ Screens:
                                 )
                             },
                             Set(varProjectRec, _patched);
-                            Office365Outlook.SendEmailV2(
-                                varProjectRec.nod_SubmittedBy,
-                                "IT Estimate Complete — " & varProjectRec.'Request Title',
-                                "<p>Hi,</p>"
-                                    & "<p>The IT estimate for your request <strong>"
-                                    & varProjectRec.'Request Title'
-                                    & "</strong> has been completed and submitted to the PMO.</p>"
-                                    & "<p>Your request is now in the PMO queue for prioritization.</p>"
-                                    & If(
-                                        Len(varEstimateNotesText) > 0,
-                                        "<p><strong>Notes from IT:</strong> " & varEstimateNotesText & "</p>",
-                                        ""
-                                      )
-                                    & "<p style='color:#6b7280;font-size:12px'>National Oak IT Team</p>",
+
+                            With(
                                 {
-                                    Cc:     "dgornitsky@nationaloak.com",
-                                    IsHtml: true
-                                }
+                                    _emailBody:
+                                        "<p>Hi,</p>"
+                                        & "<p>The IT estimate for your request <strong>"
+                                        & varProjectRec.'Request Title'
+                                        & "</strong> has been completed and submitted to the PMO.</p>"
+                                        & "<p>Your request is now in the PMO queue for prioritization.</p>"
+                                        & If(
+                                            Len(varEstimateNotesText) > 0,
+                                            "<p><strong>Notes from IT:</strong> " & varEstimateNotesText & "</p>",
+                                            ""
+                                          )
+                                        & "<p style='color:#6b7280;font-size:12px'>National Oak IT Team</p>"
+                                },
+                                IfError(
+                                    Office365Outlook.SendEmailV2(
+                                        varProjectRec.nod_SubmittedBy,
+                                        "IT Estimate Complete — " & varProjectRec.'Request Title',
+                                        _emailBody,
+                                        { Cc: "dgornitsky@nationaloak.com", IsHtml: true }
+                                    ),
+                                    Notify("Estimate submitted, but the notification email failed to send.", NotificationType.Warning)
+                                )
                             );
-                            // Write to colEstimateAudit (in-session)
+
                             Collect(
                                 colEstimateAudit,
                                 {
@@ -3536,8 +3410,8 @@ Screens:
                                 }
                             );
 
-                            // Remove from local queue
-                            RemoveIf(colEstimateQueue, 'IntakeID Request' = varProjectRec.'IntakeID Request');
+                            RemoveIf(colEstimateQueue, 'Project Intake Request' = varProjectRec.'Project Intake Request');
+
                             Notify("Estimate submitted to PMO.", NotificationType.Success);
                             Set(varProjectRec,        Blank());
                             Set(varITEstimate,        Blank());
@@ -3627,7 +3501,7 @@ Screens:
                           Set(varEstimateSystems,    "");
                           Set(varEstimateStartMonth, Blank());
                           Set(varShowValidation,     false);
-                          Set(varSelectedCategory, Blank());
+                          Set(varSelectedCategory,   Blank());
 
                           // 2. Load dynamic Q&A answers
                           ClearCollect(
@@ -3640,51 +3514,24 @@ Screens:
                                           'Answer Text':    Text(Value.AnswerText)
                                       }
                                   ),
-                                  'nod_questionlabel',
+                                  nod_questionlabel,
                                   SortOrder.Ascending
                               )
                           );
 
-                          // 3. Status gate — auto-transition Received → In Review
-                          If(
-                              ThisItem.'IT Estimate Status'
-                                  = 'IT Estimate Status (Project Intake Requests)'.Received,
-
-                              IfError(
-                                  With(
-                                      {
-                                          _updated: Patch(
-                                              'Project Intake Requests',
-                                              ThisItem,
-                                              {
-                                                  'IT Estimate Status':
-                                                      'IT Estimate Status (Project Intake Requests)'.'In Review'
-                                              }
-                                          )
-                                      },
-                                      Set(varProjectRec,            _updated);
-                                      Set(varSelectedIntakeRequest, _updated);
-                                      Set(varITEstimate,            _updated);
-                                      Set(varSelectedCategory,      _updated.'Project Category');
-                                      Set(varITEstimateMode,        "edit")
-                                  ),
-                                  Notify(
-                                      "Error updating status: " & FirstError.Message,
-                                      NotificationType.Error
-                                  )
-                              ),
-
-                              Set(varProjectRec,            ThisItem);
-                              Set(varSelectedIntakeRequest, ThisItem);
-                              Set(varITEstimate,            ThisItem);
-                              Set(varSelectedCategory,      ThisItem.'Project Category');
-                              Set(varITEstimateMode,
-                                  If(
-                                      ThisItem.'IT Estimate Status'
-                                          = 'IT Estimate Status (Project Intake Requests)'.Complete,
-                                      "readonly",
-                                      "edit"
-                                  )
+                          // 3. Load selected request into working variables (no status mutation on select)
+                          With({_rec: LookUp('Project Intake Requests',
+                                  nod_projectintakerequestid = ThisItem.nod_projectintakerequestid)},
+                              Set(varProjectRec,            _rec);
+                              Set(varSelectedIntakeRequest, _rec);
+                              Set(varITEstimate,            _rec)
+                          );
+                          Set(varSelectedCategory,      ThisItem.'Project Category');
+                          Set(varITEstimateMode,
+                              If(
+                                  ThisItem.'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.Complete,
+                                  "readonly",
+                                  "edit"
                               )
                           )
                         ShowScrollbar: =false
@@ -3722,7 +3569,7 @@ Screens:
                                 =
                                 If(
                                     Text(ThisItem.'IT Estimate Status') = "In Review",
-                                    RGBA(245, 158, 11, 1),
+                                    Color.Orange,
                                     Color.Transparent
                                 )
                               BorderThickness: |-
@@ -3735,27 +3582,27 @@ Screens:
                               Color: |-
                                 =
                                 Switch(
-                                    Text(ThisItem.'IT Estimate Status'),
-                                    "Submitted to IT",     gblTheme.ColorDanger,
-                                    "Received",           gblTheme.ColorDanger,
+                                    ThisItem.'IT Estimate Status',
+                                    'IT Estimate Status (Project Intake Requests)'.'Information Needeed',     gblTheme.ColorDanger,
+                                    'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDanger,
 
                                     // ✅ NEW In Review text color
-                                    "In Review",          RGBA(180, 83, 9, 1),
+                                    'IT Estimate Status (Project Intake Requests)'.'In Review',          Color.DarkOrange,
 
-                                    "IT Estimate Complete", gblTheme.ColorSuccess,
+                                    'IT Estimate Status (Project Intake Requests)'.Complete, gblTheme.ColorSuccess,
                                     gblTheme.ColorTextSecondary
                                 )
                               Fill: |-
                                 =
                                 Switch(
-                                    Text(ThisItem.'IT Estimate Status'),
-                                    "Submitted to IT",     gblTheme.ColorDangerBg,
-                                    "Received",           gblTheme.ColorDangerBg,
+                                    ThisItem.'IT Estimate Status',
+                                    'IT Estimate Status (Project Intake Requests)'.'Information Needeed',     gblTheme.ColorDangerBg,
+                                    'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDangerBg,
 
                                     // ✅ NEW In Review color
-                                    "In Review",          RGBA(254, 243, 199, 1),
+                                    'IT Estimate Status (Project Intake Requests)'.'In Review',          Color.LightGoldenRodYellow,
 
-                                    "IT Estimate Complete", gblTheme.ColorSuccessBg,
+                                    'IT Estimate Status (Project Intake Requests)'.Complete, gblTheme.ColorSuccessBg,
                                     gblTheme.ColorSurfaceMuted
                                 )
                               FontWeight: =FontWeight.Semibold
@@ -3802,9 +3649,9 @@ Screens:
                         - recRowBottom:
                             Control: Rectangle@2.3.0
                             Properties:
-                              BorderColor: =RGBA(229, 231, 235, 1)
+                              BorderColor: =gblTheme.ColorBorder
                               BorderThickness: =1
-                              Fill: =RGBA(229, 231, 235, 1)
+                              Fill: =gblTheme.ColorBorderStrong
                               Height: =1
                               OnSelect: =Select(Parent)
                               Width: =Parent.TemplateWidth - 16
@@ -4227,7 +4074,7 @@ Screens:
                                     RadiusBottomRight: =gblTheme.RadiusSm
                                     RadiusTopLeft: =gblTheme.RadiusSm
                                     RadiusTopRight: =gblTheme.RadiusSm
-                                    Text: =Coalesce(varITEstimate.'IT Effort Score', "—")
+                                    Text: =varEffortScore
                                     Width: =Parent.Width - lblEffortScoreField.Width
                         - lblQASectionHeader:
                             Control: ModernText@1.0.0
@@ -4260,7 +4107,7 @@ Screens:
                               Y: =
                             Children:
                               - nod_answertext_Column1:
-                                  Control: ModernDataGridColumn@1.1.1
+                                  Control: ModernDataGridColumn@1.1.2
                                   Variant: Textual
                                   IsLocked: true
                                   Properties:
@@ -4269,7 +4116,7 @@ Screens:
                                     Width: =642
                                     Wrap: =true
                               - nod_questionlabel_Column1:
-                                  Control: ModernDataGridColumn@1.1.1
+                                  Control: ModernDataGridColumn@1.1.2
                                   Variant: Textual
                                   Properties:
                                     FieldDisplayName: ="Question"
@@ -4371,7 +4218,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =RGBA(0, 0, 0, 0.45)
+            Fill: =gblTheme.ColorBorderStrong
             Height: =App.Height
             Visible: =varIsSubmitting
             Width: =App.Width
@@ -4458,7 +4305,7 @@ Screens:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
                 Properties:
-                  Fill: =RGBA(248, 249, 250, 1)
+                  Fill: =gblTheme.ColorSurface
                   LayoutAlignItems: =LayoutAlignItems.Stretch
                   LayoutDirection: =LayoutDirection.Vertical
                   LayoutGap: =16
@@ -4537,7 +4384,7 @@ Screens:
                             Control: GroupContainer@1.5.0
                             Variant: AutoLayout
                             Properties:
-                              Fill: =RGBA(249, 250, 251, 1)
+                              Fill: =gblTheme.ColorSurface
                               FillPortions: =0
                               Height: =40
                               LayoutAlignItems: =LayoutAlignItems.Center
@@ -4564,14 +4411,14 @@ Screens:
                         - recMessageDivider:
                             Control: Rectangle@2.3.0
                             Properties:
-                              Fill: =RGBA(229, 231, 235, 1)
+                              Fill: =gblTheme.ColorBorder
                               Height: =1
                               LayoutMinHeight: =1
                               LayoutMinWidth: =16
                         - txtContactMessage:
                             Control: ModernTextInput@1.1.0
                             Properties:
-                              BorderColor: =RGBA(229, 231, 235, 1)
+                              BorderColor: =gblTheme.ColorBorder
                               BorderThickness: =0
                               Fill: =gblTheme.ColorSurface
                               Height: =160
@@ -4603,7 +4450,7 @@ Screens:
                               - btnOpenTeamsChat:
                                   Control: Button@0.0.45
                                   Properties:
-                                    BasePaletteColor: =RGBA(98,100,167,1)
+                                    BasePaletteColor: =Color.Purple
                                     DisplayMode: |-
                                       =If(
                                       Len(Trim(txtContactMessage.Text)) > 0,
@@ -4638,7 +4485,7 @@ Screens:
                                                                                 Collect(colEstimateAudit,
                                                                                     {
                                                                                         EventType:   "Info Requested (Teams)",
-                                                                                        ChangedBy:   varCurrentSystemUserId,
+                                                                                        ChangedBy:   varAppUser.Name,
                                                                                         ChangedAt:   Now(),
                                                                                         Notes:       txtContactMessage.Text,
                                                                                         StatusColor: 'BadgeCanvas.ThemeColor'.Warning
@@ -4907,7 +4754,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =RGBA(0, 0, 0, 0.35)
+            Fill: =gblTheme.ColorSurfaceAlt
             Height: =App.Height
             Visible: =varEstimateInputSelect
             Width: =App.Width
@@ -5359,7 +5206,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =RGBA(0, 0, 0, 0.5)
+            Fill: =Color.DarkGray
             Height: =App.Height
             Visible: =varShowNotesPanel
             Width: =App.Width
@@ -5432,7 +5279,7 @@ Screens:
                       Control: GroupContainer@1.5.0
                       Variant: AutoLayout
                       Properties:
-                        Fill: =RGBA(248, 249, 250, 1)
+                        Fill: =gblTheme.ColorSurface
                         LayoutAlignItems: =LayoutAlignItems.Stretch
                         LayoutDirection: =LayoutDirection.Vertical
                         LayoutGap: =gblTheme.Space3
@@ -5455,7 +5302,7 @@ Screens:
                         - txtEstimateNotes:
                             Control: ModernTextInput@1.1.0
                             Properties:
-                              BorderColor: =RGBA(229, 231, 235, 1)
+                              BorderColor: =gblTheme.ColorBorder
                               BorderThickness: =1
                               Default: =varEstimateNotesText
                               Fill: =gblTheme.ColorSurface
@@ -5533,40 +5380,74 @@ Screens:
     Properties:
       Fill: =gblTheme.ColorSurfaceAlt
       OnVisible: |-
-        =If(
-            varAppReady && Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
+        =// scrPMOQueue.OnVisible — expanded authorized path
+        Set(varRedirectToHome, false);
+        If(
+                    Not(varAppReady),
+                    true,
+                    If(
+                        Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
+                        Set(varRedirectToHome, true),
+                        Set(varRedirectToHome, false);
+        Concurrent(
+            // ── Triage queue: PMO-actionable (Submitted / PMO Review) ─────────────────
+            ClearCollect(
+                colPMOTriageQueue,
+                SortByColumns(
+                    Filter(
+                        'Project Intake Requests',
+                        'Project Intake Status' = nod_pr_status_choice.Submitted
+                        Or 'Project Intake Status' = nod_pr_status_choice.'PMO Review'
+                    ),
+                    "createdon",
+                    SortOrder.Ascending
+                )
+            ),
 
-            // unauthorized path
-            Set(varRedirectToHome, true),
+            // ── Read-only IT-routed: visible to PMO but not actionable ────────────────
+            Set(varPMODetailReadOnly, true);
+            ClearCollect(
+                colPMOITRoutedQueue,
+                SortByColumns(
+                    Filter(
+                        'Project Intake Requests',
+                        'Project Intake Status' = nod_pr_status_choice.'IT Estimate'
+                    ),
+                    "createdon",
+                    SortOrder.Ascending
+                )
+            ),
 
-            // authorized path
-            Set(varRedirectToHome, false);
-            Concurrent(
-                ClearCollect(
-                    colPMOFinalizationQueue,
-                    SortByColumns(
-                        Filter(
-                            'Project Intake Requests',
-                            'Project Intake Status' = nod_pr_status_choice.Approved
-                            And (
-                                (RequiresJira = true And JiraSynced = false)
-                                Or (RequiresPrism = true And PrismSynced = false)
-                            )
-                        ),
-                        "modifiedon",
-                        SortOrder.Descending
-                    )
-                ),
-                Set(varPMOSearch,         ""),
-                Set(varQueueSortDesc,     true),
-                Set(varSelectedPMORecord, Blank())
-            );
-            If(
-                Not(IsEmpty(colPMOFinalizationQueue)),
-                Set(varSelectedPMORecord, First(colPMOFinalizationQueue)),
-                Set(varSelectedPMORecord, Blank())
-            )
-        )
+            // ── Finalization queue: Approved + pending Jira/Prism ─────────────────────
+            ClearCollect(
+                colPMOFinalizationQueue,
+                SortByColumns(
+                    Filter(
+                        'Project Intake Requests',
+                        'Project Intake Status' = nod_pr_status_choice.Approved
+                        And (
+                            (RequiresJira = true And JiraSynced = false)
+                            Or (RequiresPrism = true And PrismSynced = false)
+                        )
+                    ),
+                    "modifiedon",
+                    SortOrder.Descending
+                )
+            ),
+
+            // ── UI state reset ────────────────────────────────────────────────────────
+            Set(varPMOSearch,         ""),
+            Set(varQueueSortDesc,     true),
+            Set(varSelectedPMORecord, Blank()),
+            Set(varPMOQueueTab,       "Triage")   // default tab
+        );
+
+        // Auto-select first triage item if available
+        If(
+            Not(IsEmpty(colPMOTriageQueue)),
+            Set(varSelectedPMORecord, First(colPMOTriageQueue)),
+            Set(varSelectedPMORecord, Blank())
+        )))
     Children:
       - cntMain:
           Control: GroupContainer@1.5.0
@@ -5582,6 +5463,7 @@ Screens:
                 Variant: AutoLayout
                 Properties:
                   LayoutDirection: =LayoutDirection.Vertical
+                  LayoutMaxWidth: =330
                   Width: =420
                 Children:
                   - txtSearch:
@@ -5597,31 +5479,99 @@ Screens:
                         Items: |-
                           =SortByColumns(
                               Filter(
-                                  colPMOFinalizationQueue,
+                                  colPMOTriageQueue,
                                   IsBlank(varPMOSearch)
                                   Or StartsWith('Request Title', varPMOSearch)
                               ),
                               "modifiedon",
                               If(varQueueSortDesc, SortOrder.Descending, SortOrder.Ascending)
                           )
-                        OnSelect: =Set(varSelectedPMORecord, ThisItem)
-                        TemplateSize: =90
+                        OnSelect: |+
+                          =Set(
+                              varSelectedPMORecord,
+                              LookUp(
+                                  'Project Intake Requests',
+                                  'Project Intake Request' = ThisItem.'Project Intake Request'
+                              )
+                          );
+                          Set(varPMOReclassTo, "");
+                          Set(varPMOReclassReason, "");
+                          Set(varTriageNotesText,  Coalesce(ThisItem.'PMO Notes', ""));
+                          Reset(txtTriageNotes);
+                          Reset(ddReclass);
+                          Set(varJiraAcknowledged, false);
+                          Set(varPrismAcknowledged, false);
+                          Set(
+                              varPMODetailReadOnly,
+                              varSelectedPMORecord.'Project Intake Status' = nod_pr_status_choice.'IT Estimate'
+                          )
+                        TemplateFill: |-
+                          =If(
+                                ThisItem.IsSelected,
+                                gblTheme.ColorSurfaceMuted,
+                                Color.Transparent
+                            )
+                        TemplateSize: =150
                         Width: =Parent.Width
                       Children:
+                        - recSelectedAccent:
+                            Control: Rectangle@2.3.0
+                            Properties:
+                              Fill: |-
+                                =If(
+                                            ThisItem.IsSelected,
+                                            gblTheme.ColorBrandPrimary,
+                                            Color.Transparent
+                                        )
+                              Height: =Parent.TemplateHeight
+                              Width: =4
+                        - lblPrismOverdue:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Color: =gblTheme.ColorDanger
+                              OnSelect: =Select(Parent)
+                              Text: |-
+                                ="⚠️ Prism overdue by " 
+                                    & Text(DateDiff(varSelectedPMORecord.PrismDeadline, Today(), TimeUnit.Days)) 
+                                    & " day(s)"
+                              Visible: |-
+                                =Not(IsBlank(varSelectedPMORecord))
+                                    And varSelectedPMORecord.RequiresPrism = true
+                                    And varSelectedPMORecord.PrismSynced = false
+                              Width: =248
+                              X: =20
+                              Y: =94
+                        - lblJiraOverdue:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Color: =gblTheme.ColorDanger
+                              OnSelect: =Select(Parent)
+                              Text: |-
+                                ="⚠️ Jira overdue by " 
+                                    & Text(DateDiff(varSelectedPMORecord.JiraDeadline, Today(), TimeUnit.Days)) 
+                                    & " day(s)"
+                              Visible: |-
+                                =Not(IsBlank(varSelectedPMORecord))
+                                    And varSelectedPMORecord.RequiresJira = true
+                                    And varSelectedPMORecord.JiraSynced = false
+                              Width: =205
+                              X: =20
+                              Y: =40
                         - lblTitle_1:
                             Control: Label@2.5.1
                             Properties:
                               Color: =gblTheme.ColorTextPrimary
+                              FontWeight: |-
+                                =If(
+                                      ThisItem.IsSelected,
+                                      FontWeight.Bold,
+                                      FontWeight.Normal
+                                  )
                               Height: =35
+                              OnSelect: =Select(Parent)
                               Text: =ThisItem.'Request Title'
-                              Width: =416
+                              Width: =Parent.Width
                               X: =8
-                  - Text3:
-                      Control: ModernText@1.0.0
-                      Properties:
-                        LayoutMinHeight: =16
-                        LayoutMinWidth: =16
-                        Text: =
             - conDetail_1:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
@@ -5629,16 +5579,6 @@ Screens:
                   LayoutAlignItems: =LayoutAlignItems.Stretch
                   LayoutDirection: =LayoutDirection.Vertical
                 Children:
-                  - lblDetail:
-                      Control: Label@2.5.1
-                      Properties:
-                        Text: |-
-                          =If(
-                              IsBlank(varSelectedPMORecord),
-                              "No selection",
-                              varSelectedPMORecord.'Request Title'
-                          )
-                        Width: =300
                   - conPMOTriageReview:
                       Control: GroupContainer@1.5.0
                       Variant: AutoLayout
@@ -5655,7 +5595,7 @@ Screens:
                         PaddingLeft: =gblTheme.Space4
                         PaddingRight: =gblTheme.Space4
                         PaddingTop: =gblTheme.Space4
-                        Visible: =varIsPMO And Not(IsBlank(varSelectedPMORecord)) And varSelectedPMORecord.'Project Classification' = "PMO Triage"
+                        Visible: =varIsPMO And Not(IsBlank(varSelectedPMORecord))
                       Children:
                         - conTriageHeader:
                             Control: GroupContainer@1.5.0
@@ -5666,7 +5606,7 @@ Screens:
                               LayoutDirection: =LayoutDirection.Horizontal
                               LayoutGap: =gblTheme.Space3
                               LayoutJustifyContent: =LayoutJustifyContent.Center
-                              LayoutMaxHeight: =lblTriageHeading.Height+ lblClassPill.Height
+                              LayoutMaxHeight: =60
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
                               PaddingBottom: =8
@@ -5703,7 +5643,7 @@ Screens:
                                     RadiusBottomRight: =gblTheme.RadiusPill
                                     RadiusTopLeft: =gblTheme.RadiusPill
                                     RadiusTopRight: =gblTheme.RadiusPill
-                                    Text: ="PMO Triage"
+                                    Text: =varSelectedPMORecord.'Auto-Classified Outcome'
                         - conTriageFields:
                             Control: GroupContainer@1.5.0
                             Variant: AutoLayout
@@ -5714,7 +5654,7 @@ Screens:
                               Fill: =gblTheme.ColorSurface
                               LayoutAlignItems: =LayoutAlignItems.Stretch
                               LayoutDirection: =LayoutDirection.Vertical
-                              LayoutGap: =gblTheme.Space3
+                              LayoutGap: =10
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
                               PaddingBottom: =gblTheme.Space4
@@ -5732,20 +5672,24 @@ Screens:
                                     Color: =gblTheme.ColorTextPrimary
                                     FillPortions: =1
                                     FontWeight: =FontWeight.Semibold
-                                    LayoutMaxHeight: =50
+                                    LayoutMaxHeight: =40
                                     LayoutMinHeight: =40
                                     LayoutMinWidth: =16
+                                    PaddingBottom: =
+                                    PaddingTop: =
                                     Size: =gblTheme.FontSizeH3
                                     Text: =varSelectedPMORecord.'Request Title'
                                     VerticalAlign: =VerticalAlign.Top
                               - lblTriageSponsor:
                                   Control: ModernText@1.0.0
                                   Properties:
-                                    AutoHeight: =true
                                     Color: =gblTheme.ColorTextSecondary
                                     FillPortions: =1
+                                    LayoutMaxHeight: =40
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
+                                    PaddingBottom: =
+                                    PaddingTop: =
                                     Size: =gblTheme.FontSizeBody
                                     Text: |-
                                       ="Sponsor: " & Coalesce(varSelectedPMORecord.'Sponsor Name', "—")
@@ -5754,33 +5698,66 @@ Screens:
                                   Properties:
                                     AutoHeight: =true
                                     Color: =gblTheme.ColorTextSecondary
-                                    FillPortions: =1
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
                                     Size: =gblTheme.FontSizeBody
                                     Text: |-
                                       ="Category: " & Coalesce(Text(varSelectedPMORecord.'Project Category'), "—")
-                              - lblTriageSubmitted:
+                              - lblTriageProblem_1Field:
                                   Control: ModernText@1.0.0
                                   Properties:
                                     AutoHeight: =true
-                                    Color: =gblTheme.ColorTextMuted
-                                    FillPortions: =1
+                                    Color: =gblTheme.ColorTextPrimary
+                                    FontWeight: =FontWeight.Bold
+                                    LayoutMaxHeight: =60
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
-                                    Size: =gblTheme.FontSizeSmall
-                                    Text: |-
-                                      ="Submitted: " & Text(varSelectedPMORecord.'Created On', DateTimeFormat.ShortDateTime)
+                                    PaddingBottom: =
+                                    PaddingLeft: =
+                                    PaddingRight: =
+                                    PaddingTop: =
+                                    Size: =gblTheme.FontSizeBody
+                                    Text: ="Business Problem:"
                               - lblTriageProblem:
                                   Control: ModernText@1.0.0
                                   Properties:
                                     AutoHeight: =true
                                     Color: =gblTheme.ColorTextPrimary
+                                    LayoutMaxHeight: =60
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    PaddingBottom: =
+                                    PaddingLeft: =
+                                    PaddingRight: =
+                                    PaddingTop: =
+                                    Size: =gblTheme.FontSizeBody
+                                    Text: =Coalesce(varSelectedPMORecord.'What problem are you trying to solve?', "No description provided.")
+                              - lblITEffortScoreField:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    AutoHeight: =true
+                                    Color: =gblTheme.ColorTextPrimary
+                                    FontWeight: =FontWeight.Bold
+                                    LayoutMaxHeight: =60
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    PaddingBottom: =
+                                    PaddingLeft: =
+                                    PaddingRight: =
+                                    PaddingTop: =
+                                    Size: =gblTheme.FontSizeBody
+                                    Text: ="IT Effort Score"
+                              - lblITEffortScore:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    AutoHeight: =true
+                                    Color: =gblTheme.ColorTextPrimary
                                     FillPortions: =1
+                                    LayoutMaxHeight: =60
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
                                     Size: =gblTheme.FontSizeBody
-                                    Text: =Coalesce(varSelectedPMORecord.'What problem are you trying to solve?', "No description provided.")
+                                    Text: =If(!IsBlank(varSelectedPMORecord.'IT Effort Score'), varSelectedPMORecord.'IT Effort Score', "IT Estimate Not Complete")
                         - conTriageNotes:
                             Control: GroupContainer@1.5.0
                             Variant: AutoLayout
@@ -5788,6 +5765,7 @@ Screens:
                               LayoutAlignItems: =LayoutAlignItems.Center
                               LayoutDirection: =LayoutDirection.Vertical
                               LayoutGap: =gblTheme.Space2
+                              LayoutMaxHeight: =100
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
                               PaddingBottom: =8
@@ -5807,6 +5785,7 @@ Screens:
                               - txtTriageNotes:
                                   Control: ModernTextInput@1.1.0
                                   Properties:
+                                    DisplayMode: =If(varPMODetailReadOnly, DisplayMode.View, DisplayMode.Edit)
                                     Height: =100
                                     LayoutMinHeight: =100
                                     LayoutMinWidth: =16
@@ -5830,188 +5809,235 @@ Screens:
                               PaddingRight: =8
                               PaddingTop: =8
                             Children:
-                              - lblClassificationCurrent:
-                                  Control: ModernText@1.0.0
-                                  Properties:
-                                    LayoutMinHeight: =16
-                                    LayoutMinWidth: =16
-                                    Text: =varProjectRec.'Auto-Classified Outcome'
-                              - btnReturnForRework:
-                                  Control: ModernButton@1.0.0
-                                  Properties:
-                                    BasePaletteColor: =gblTheme.ColorWarning
-                                    LayoutMinHeight: =16
-                                    LayoutMinWidth: =16
-                                    OnSelect: "=// btnReturnForRework.OnSelect — comma version\r\nIfError(\r\n    With(\r\n        {\r\n            _patched: Patch(\r\n                'Project Intake Requests',\r\n                varSelectedPMORecord,\r\n                {\r\n                    'Project Intake Status': nod_pr_status_choice.Draft,\r\n                    'PMO Notes': varTriageNotesText\r\n                }\r\n            )\r\n        },\r\n        \r\n        RemoveIf(colPMOFinalizationQueue, 'IntakeID Request' = _patched.'IntakeID Request');\r\n        Set(varSelectedPMORecord, Blank());\r\n        Set(varTriageNotesText, \"\");\r\n        Reset(txtTriageNotes);\r\n        Notify(\"Request returned to submitter.\", NotificationType.Warning)\r\n    ),\r\n    Notify(\"Return failed: \" & FirstError.Message, NotificationType.Error)\r\n)"
-                                    Text: ="Return for Rework"
-                                    Width: =150
-                              - ddReclass:
-                                  Control: ModernDropdown@1.0.0
-                                  Properties:
-                                    AccessibleLabel: ="Change classification for this request"
-                                    ItemDisplayText: =ThisItem.Value
-                                    Items: =["Standard Project", "PMO Triage", "Just Do It"]
-                                    LayoutMinHeight: =16
-                                    LayoutMinWidth: =16
-                                    OnChange: =Set(varPMOReclassTo, Self.Selected.Value)
-                              - txtReclassReason:
-                                  Control: ModernTextInput@1.1.0
-                                  Properties:
-                                    LayoutMinHeight: =16
-                                    LayoutMinWidth: =16
-                                    OnChange: =Set(varPMOReclassReason, Self.Text)
-                                    Placeholder: |-
-                                      ="Reason for reclassification (required)
-                                      "
-                                    Type: =TextInputType.Multiline
-                                    Visible: =Not(IsBlank(varPMOReclassTo)) And varPMOReclassTo <> Text(varSelectedPMORecord.'Project Classification')
                               - btnSubmitToIT:
                                   Control: ModernButton@1.0.0
                                   Properties:
                                     AccessibleLabel: ="Submit this PMO Triage request to IT for estimation"
                                     BasePaletteColor: =gblTheme.ColorBrandPrimary
                                     DisplayMode: |-
-                                      =If(
-                                                  varIsPMO
-                                                  And Not(IsBlank(varSelectedPMORecord))
-                                                  And varSelectedPMORecord.'Project Intake Status' = nod_pr_status_choice.'PMO Review',
-                                                  DisplayMode.Edit,
-                                                  DisplayMode.Disabled
-                                              )
+                                      =If(varIsPMO And Not(IsBlank(varSelectedPMORecord)) And varPMOStage = "NeedsEstimate",
+                                        DisplayMode.Edit,DisplayMode.Disabled)
                                     FillPortions: =1
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
-                                    OnSelect: "=IfError(\r\n    With(\r\n        {\r\n            _patched: Patch(\r\n                'Project Intake Requests',\r\n                varSelectedPMORecord,\r\n                {\r\n                    'Project Intake Status': nod_pr_status_choice.'IT Estimate','PMO Notes':             varTriageNotesText \r\n                }\r\n            )\r\n        },\r\n        // Remove from local PMO queue using the patched record's PK\r\n        RemoveIf(\r\n            colPMOFinalizationQueue,\r\n            'IntakeID Request' = _patched.'IntakeID Request'\r\n        );\r\n        // In-session audit entry\r\n        Collect(\r\n            colEstimateAudit,\r\n            {\r\n                EventType:   \"Routed to IT Estimate\",\r\n                ChangedBy:   varAppUser.Name,\r\n                ChangedAt:   Now(),\r\n                Notes:       \"Routed from PMO Queue by \" & varAppUser.Name,\r\n                StatusColor: 'BadgeCanvas.ThemeColor'.Informative\r\n            }\r\n        );\r\n       \r\n        // Refresh selected record from patch return value\r\n        Set(varSelectedPMORecord, Blank());\r\n        Notify(\"Routed to IT Estimate queue.\", NotificationType.Success)\r\n    ),\r\n    Notify(\"Routing failed: \" & FirstError.Message, NotificationType.Error)\r\n)"
+                                    OnSelect: |-
+                                      =// ─────────────────────────────────────────────────────────────────────────────
+                                      // btnSubmitToIT.OnSelect  (PMO Queue — Route PMO Triage request to IT)
+                                      // Comma-delimiter version
+                                      // ─────────────────────────────────────────────────────────────────────────────
+
+                                      IfError(
+                                          With(
+                                              {
+                                                  _patched: Patch(
+                                                      'Project Intake Requests',
+                                                      varSelectedPMORecord,
+                                                      {
+                                                          'Project Intake Status': nod_pr_status_choice.'IT Estimate',
+                                                          'PMO Notes':             varTriageNotesText
+                                                      }
+                                                  )
+                                              },
+
+                                              // ── Remove routed record from local PMO queue collection ─────────────
+                                              RemoveIf(
+                                                  colPMOTriageQueue,
+                                                  'Project Intake Request' = _patched.'Project Intake Request'
+                                              );
+
+                                              // ── In-session audit entry (Dataverse audit flow deferred) ───────────
+                                              Collect(
+                                                  colEstimateAudit,
+                                                  {
+                                                      EventType:   "Routed to IT Estimate",
+                                                      ChangedBy:   varAppUser.Name,
+                                                      ChangedAt:   Now(),
+                                                      Notes:       "Routed from PMO Queue by " & varAppUser.Name,
+                                                      StatusColor: 'BadgeCanvas.ThemeColor'.Informative
+                                                  }
+                                              );
+
+                                              // ── Advance to next record or clear selection ────────────────────────
+                                              If(
+                                                  Not(IsEmpty(colPMOTriageQueue)),
+                                                  Set(varSelectedPMORecord, First(colPMOTriageQueue)),
+                                                  Set(varSelectedPMORecord, Blank())
+                                              );
+
+                                              // ── Reset triage input controls ──────────────────────────────────────
+                                              Set(varTriageNotesText, "");
+                                              Reset(txtTriageNotes);
+
+                                              // ── Success ──────────────────────────────────────────────────────────
+                                              Notify("Request routed to IT Estimate queue.", NotificationType.Success)
+                                          ),
+
+                                          // ── PATCH FAILED ─────────────────────────────────────────────────────────
+                                          Notify("Routing failed: " & FirstError.Message, NotificationType.Error)
+                                      )
                                     Text: ="Submit to IT for Estimate"
+                                    Visible: =Not(varPMODetailReadOnly)
+                                    Width: =180
+                              - btnReturnToSubmitter:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    BasePaletteColor: =gblTheme.ColorWarning
+                                    DisplayMode: |-
+                                      =If(
+                                                        varIsPMO And Not(IsBlank(varSelectedPMORecord)),
+                                                        DisplayMode.Edit,
+                                                        DisplayMode.Disabled
+                                                    )
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    OnSelect: "=IfError(\r\n                  With(\r\n                      {\r\n                          _newClass: If(\r\n                              IsBlank(varPMOReclassTo)\r\n                                  Or varPMOReclassTo = Text(varSelectedPMORecord.'Project Classification'),\r\n                              Blank(),\r\n                              varPMOReclassTo\r\n                          ),\r\n                          _patched: Patch(\r\n                              'Project Intake Requests',\r\n                              varSelectedPMORecord,\r\n                              {\r\n                                  'Project Intake Status': nod_pr_status_choice.Draft,\r\n                                  'PMO Notes':             varTriageNotesText\r\n                              }\r\n                          )\r\n                      },\r\n                      RemoveIf(colPMOTriageQueue, 'IntakeID Request' = _patched.'IntakeID Request');\r\n                      Set(varSelectedPMORecord, Blank());\r\n                      Set(varPMOReclassTo, \"\");\r\n                      Set(varPMOReclassReason, \"\");\r\n                      Set(varTriageNotesText, \"\");\r\n                      Reset(txtTriageNotes);\r\n                      Reset(ddReclass);\r\n                \r\n                      If(\r\n                          Not(IsEmpty(colPMOTriageQueue)),\r\n                          Set(varSelectedPMORecord, First(colPMOTriageQueue));\r\n                          Set(varPMOStage,\r\n                              If(\r\n                                  First(colPMOTriageQueue).'IT Estimate Status'\r\n                                      = 'IT Estimate Status (Project Intake Requests)'.Complete,\r\n                                  \"EstimateReady\",\r\n                                  \"NeedsEstimate\"\r\n                              )\r\n                          )\r\n                      );\r\n                      Notify(\"Request returned to submitter.\", NotificationType.Warning)\r\n                  ),\r\n                  Notify(\"Return failed: \" & FirstError.Message, NotificationType.Error)\r\n              )"
+                                    Text: ="Return to Submitter"
+                                    Width: =160
+                              - ddReclass:
+                                  Control: ModernDropdown@1.0.1
+                                  Properties:
+                                    AccessibleLabel: ="Change classification for this request"
+                                    Default: |-
+                                      =If(
+                                            IsBlank(varSelectedPMORecord) Or IsBlank(varSelectedPMORecord.'Auto-Classified Outcome'),
+                                            Blank(),
+                                            { Value: varSelectedPMORecord.'Auto-Classified Outcome' }
+                                        )
+                                    ItemDisplayText: =
+                                    Items: =['Auto-Classified Outcome (Project Intake Requests)'.'Just Do It','Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage','Auto-Classified Outcome (Project Intake Requests)'.'Standard Project']
+                                    LayoutMinHeight: =16
+                                    LayoutMinWidth: =16
+                                    OnChange: =Set(varPMOReclassTo, Text(Self.Selected.Value))
+                                    Width: =150
+                              - btnJira:
+                                  Control: Button@0.0.45
+                                  Properties:
+                                    AccessibleLabel: ="Mark Jira synced for selected request"
+                                    BasePaletteColor: =If(varJiraAcknowledged, gblTheme.ColorBrandAccent, gblTheme.ColorBorderStrong)
+                                    DisplayMode: =If(varPMODetailReadOnly, DisplayMode.View, DisplayMode.Edit)
+                                    OnSelect: |-
+                                      =Set(varJiraAcknowledged, true);
+                                      Notify("Jira entry confirmed. Confirm Prism entry to continue.", NotificationType.Information)
+                                    Text: =If(varJiraAcknowledged, "✓ Jira Confirmed", "Confirm Jira Entry")
+                                    Width: =200
+                                    X: =16
+                                    Y: =34
+                              - btnPrism:
+                                  Control: Button@0.0.45
+                                  Properties:
+                                    AccessibleLabel: ="Mark Prism synced for selected request"
+                                    BasePaletteColor: =If(varPrismAcknowledged, gblTheme.ColorBrandAccent, gblTheme.ColorBorderStrong)
+                                    DisplayMode: |-
+                                      =If(
+                                          Not(IsBlank(varSelectedPMORecord))
+                                              And Not(varPrismAcknowledged),
+                                          DisplayMode.Edit,
+                                          DisplayMode.Disabled
+                                      )
+                                    OnSelect: |-
+                                      =Set(varPrismAcknowledged, true);
+                                      Notify("Prism entry confirmed. You can now approve and route the request.", NotificationType.Information)
+                                    Text: =If(varPrismAcknowledged, "✓ Prism Confirmed", "Confirm Prism Entry")
+                                    Width: =200
+                                    X: =16
+                                    Y: =34
                               - btnApproveRoute:
                                   Control: ModernButton@1.0.0
                                   Properties:
+                                    DisplayMode: |-
+                                      =If(
+                                          varIsPMO Or varIsAdmin,
+                                          DisplayMode.Edit,
+                                          DisplayMode.Disabled
+                                      )
                                     FontWeight: =FontWeight.Lighter
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
-                                    OnSelect: "=// btnRouteRequest.OnSelect — comma version\r\n\r\n// Guard: if reclassifying, a reason is mandatory\r\nIf(\r\n    Not(IsBlank(varPMOReclassTo))\r\n    And varPMOReclassTo <> Text(varSelectedPMORecord.'Auto-Classified Outcome')\r\n    And Len(Trim(varPMOReclassReason)) = 0,\r\n\r\n    Notify(\"Please provide a reason for reclassification.\", NotificationType.Error),\r\n\r\n    // Proceed\r\n    With(\r\n        {\r\n            // Resolve classification — use dropdown selection if changed, otherwise keep existing\r\n            _newClass: If(\r\n                IsBlank(varPMOReclassTo)\r\n                    Or varPMOReclassTo = Text(varSelectedPMORecord.'Auto-Classified Outcome'),\r\n                varSelectedPMORecord.'Auto-Classified Outcome',\r\n                Switch(varPMOReclassTo,\r\n                    \"Just Do It\",                 'Auto-Classified Outcome (Project Intake Requests)'.'Just Do It',\r\n                    \"PMO Triage\",                'Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage',\r\n                    \"Standard Project\",           'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project',\r\n                    varSelectedPMORecord.'Auto-Classified Outcome'\r\n                )\r\n            ),\r\n            // Resolve next status based on final classification\r\n            _newStatus: Switch(varPMOReclassTo,\r\n                \"Just Do It\",  nod_pr_status_choice.'IT Estimate',\r\n                \"PMO Triage\",  nod_pr_status_choice.'IT Estimate',\r\n                // Steering Committee and Standard go to PMO Review for approval routing\r\n                nod_pr_status_choice.'PMO Review'\r\n            ),\r\n            _wasReclassified: Not(IsBlank(varPMOReclassTo))\r\n                And varPMOReclassTo <> Text(varSelectedPMORecord.'Auto-Classified Outcome'),\r\n            _prevClass: Text(varSelectedPMORecord.'Auto-Classified Outcome')\r\n        },\r\n\r\n        IfError(\r\n            With(\r\n                {\r\n                    _patched: Patch(\r\n                        'Project Intake Requests',\r\n                        varSelectedPMORecord,\r\n                        {\r\n                            'Project Intake Status':  _newStatus,\r\n                            'Auto-Classified Outcome': _newClass,\r\n                            'PMO Notes':              varTriageNotesText\r\n                        }\r\n                    )\r\n                },\r\n\r\n                // Audit row — always write on route\r\n            \r\n                // Remove from local collection\r\n                RemoveIf(colPMOFinalizationQueue, 'IntakeID Request' = _patched.'IntakeID Request');\r\n\r\n                // Clear state\r\n                Set(varSelectedPMORecord, Blank());\r\n                Set(varPMOReclassTo,      \"\");\r\n                Set(varPMOReclassReason,  \"\");\r\n                Set(varTriageNotesText,   \"\");\r\n                Reset(txtTriageNotes);\r\n                Reset(ddReclass);\r\n                Reset(txtReclassReason);\r\n\r\n                Notify(\r\n                    If(_wasReclassified, \"Request reclassified and routed.\", \"Request routed.\"),\r\n                    NotificationType.Success\r\n                )\r\n            ),\r\n            Notify(\"Route failed: \" & FirstError.Message, NotificationType.Error)\r\n        )\r\n    )\r\n)"
-                                    Text: ="Approve & Route"
-                  - conJiraPrism:
-                      Control: GroupContainer@1.5.0
-                      Variant: AutoLayout
-                      Properties:
-                        AlignInContainer: =AlignInContainer.SetByContainer
-                        Height: =
-                        LayoutAlignItems: =LayoutAlignItems.Center
-                        LayoutDirection: =LayoutDirection.Horizontal
-                        LayoutJustifyContent: =LayoutJustifyContent.SpaceBetween
-                        LayoutMaxHeight: =btnJira.Height
-                        LayoutMinHeight: =16
-                        LayoutMinWidth: =16
-                        PaddingBottom: =8
-                        PaddingLeft: =8
-                        PaddingRight: =8
-                        PaddingTop: =8
-                        Visible: =varSelectedPMORecord.'Project Classification' <> "PMO Triage"
-                      Children:
-                        - btnJira:
-                            Control: Button@0.0.45
-                            Properties:
-                              AccessibleLabel: ="Mark Jira synced for selected request"
-                              DisplayMode: |-
-                                =If(
-                                    (varIsITEstimateManager Or varIsAdmin)
-                                    And Not(IsBlank(varSelectedPMORecord))
-                                    And varSelectedPMORecord.RequiresJira = true
-                                    And varSelectedPMORecord.JiraSynced = false,
-                                    DisplayMode.Edit,
-                                    DisplayMode.Disabled
-                                )
-                              OnSelect: |-
-                                =IfError(
-                                    With(
-                                        {
-                                            _patched: Patch(
-                                                'Project Intake Requests',
-                                                varSelectedPMORecord,
-                                                {JiraSynced: true}
-                                            )
-                                        },
-                                        UpdateIf(
-                                            colPMOFinalizationQueue,
-                                            ThisRecord.'Project Intake Request' = _patched.'Project Intake Request',
-                                            {JiraSynced: true}
-                                        );
-                                        If(
-                                            (varSelectedPMORecord.RequiresPrism = false Or varSelectedPMORecord.PrismSynced = true),
-                                            Remove(
-                                                colPMOFinalizationQueue,
-                                                LookUp(
-                                                    colPMOFinalizationQueue,
-                                                    'Project Intake Request' = _patched.'Project Intake Request'
-                                                )
-                                            )
-                                        );
-                                        If(
-                                            Not(IsEmpty(colPMOFinalizationQueue)),
-                                            Set(varSelectedPMORecord, First(colPMOFinalizationQueue)),
-                                            Set(varSelectedPMORecord, Blank())
-                                        );
-                                        Notify("Jira marked complete.", NotificationType.Success)
-                                    ),
-                                    Notify("Save failed. Please try again.", NotificationType.Error)
-                                )
-                              Text: ="Mark Jira Complete"
-                              Width: =200
-                        - btnPrism:
-                            Control: Button@0.0.45
-                            Properties:
-                              AccessibleLabel: ="Mark Prism synced for selected request"
-                              DisplayMode: |-
-                                =If(
-                                    (varIsPMO Or varIsAdmin)
-                                    And Not(IsBlank(varSelectedPMORecord))
-                                    And varSelectedPMORecord.RequiresPrism = true
-                                    And varSelectedPMORecord.PrismSynced = false,
-                                    DisplayMode.Edit,
-                                    DisplayMode.Disabled
-                                )
-                              OnSelect: |-
-                                =IfError(
-                                    With(
-                                        {
-                                            _patched: Patch(
-                                                'Project Intake Requests',
-                                                varSelectedPMORecord,
-                                                {PrismSynced: true}
-                                            )
-                                        },
-                                        UpdateIf(
-                                            colPMOFinalizationQueue,
-                                            ThisRecord.'Project Intake Request' = _patched.'Project Intake Request',
-                                            {PrismSynced: true}
-                                        );
-                                        If(
-                                            (varSelectedPMORecord.RequiresJira = false Or varSelectedPMORecord.JiraSynced = true),
-                                            Remove(
-                                                colPMOFinalizationQueue,
-                                                LookUp(
-                                                    colPMOFinalizationQueue,
-                                                    'Project Intake Request' = _patched.'Project Intake Request'
-                                                )
-                                            )
-                                        );
-                                        If(
-                                            Not(IsEmpty(colPMOFinalizationQueue)),
-                                            Set(varSelectedPMORecord, First(colPMOFinalizationQueue)),
-                                            Set(varSelectedPMORecord, Blank())
-                                        );
-                                        Notify("Prism marked complete.", NotificationType.Success)
-                                    ),
-                                    Notify("Save failed. Please try again.", NotificationType.Error)
-                                )
-                              Text: ="Mark Prism Complete"
-                              Width: =200
+                                    OnSelect: |-
+                                      =If(
+                                          Not(IsBlank(varPMOReclassTo))
+                                              And varPMOReclassTo <> Text(varSelectedPMORecord.'Auto-Classified Outcome')
+                                              And Len(Trim(varPMOReclassReason)) = 0,
+
+                                          Notify("Please provide a reason for reclassification.", NotificationType.Error),
+
+                                          With(
+                                              {
+                                                  _newClass: If(
+                                                      IsBlank(varPMOReclassTo)
+                                                          Or varPMOReclassTo = Text(varSelectedPMORecord.'Auto-Classified Outcome'),
+                                                      varSelectedPMORecord.'Auto-Classified Outcome',
+                                                      Switch(
+                                                          varPMOReclassTo,
+                                                          "Just Do It",       'Auto-Classified Outcome (Project Intake Requests)'.'Just Do It',
+                                                          "PMO Triage",       'Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage',
+                                                          "Standard Project", 'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project',
+                                                          varSelectedPMORecord.'Auto-Classified Outcome'
+                                                      )
+                                                  ),
+                                                  _wasReclassified: Not(IsBlank(varPMOReclassTo))
+                                                      And varPMOReclassTo <> Text(varSelectedPMORecord.'Auto-Classified Outcome')
+                                              },
+
+                                              IfError(
+                                                  With(
+                                                      {
+                                                          _patched: Patch(
+                                                              'Project Intake Requests',
+                                                              varSelectedPMORecord,
+                                                              {
+                                                                  'Project Intake Status':   nod_pr_status_choice.'PMO Review',
+                                                                  'Auto-Classified Outcome': _newClass,
+                                                                  'PMO Notes':               varTriageNotesText,
+                                                                  RequiresJira:              true,
+                                                                  RequiresPrism:             true,
+                                                                  JiraSynced:                false,
+                                                                  PrismSynced:               false,
+                                                                  JiraDeadline:              DateAdd(Today(), 3, TimeUnit.Days),
+                                                                  PrismDeadline:             DateAdd(Today(), 3, TimeUnit.Days)
+                                                              }
+                                                          )
+                                                      },
+
+                                                      // Remove from triage queue
+                                                      RemoveIf(
+                                                          colPMOTriageQueue,
+                                                          'IntakeID Request' = _patched.'IntakeID Request'
+                                                      );
+
+                                                      // Reset all state
+                                                      Set(varSelectedPMORecord, Blank());
+                                                      Set(varPMOReclassTo,      "");
+                                                      Set(varPMOReclassReason,  "");
+                                                      Set(varTriageNotesText,   "");
+                                                      Set(varJiraAcknowledged,  false);
+                                                      Set(varPrismAcknowledged, false);
+                                                      Reset(txtTriageNotes);
+                                                      Reset(ddReclass);
+
+                                                      // Advance to next record
+                                                      If(
+                                                          Not(IsEmpty(colPMOTriageQueue)),
+                                                          Set(varSelectedPMORecord, First(colPMOTriageQueue))
+                                                      );
+
+                                                      Notify(
+                                                          If(_wasReclassified, "Request reclassified and routed.", "Request routed."),
+                                                          NotificationType.Success
+                                                      )
+                                                  ),
+                                                  Notify("Route failed: " & FirstError.Message, NotificationType.Error)
+                                              )
+                                          )
+                                      )
+                                    Text: ="Approve & Close"
+                                    Visible: =varJiraAcknowledged And varPrismAcknowledged And Not(varPMODetailReadOnly)
+                                    Width: =160
       - cmpHeader_3:
           Control: CanvasComponent
           ComponentName: cmpHeader
           Properties:
-            EnvironmentLabel: ="Text"
+            EnvironmentLabel: =varEnvironmentLabel
             Fill: =gblTheme.ColorBrandPrimary
             Height: =56
             OnBackSelect: =
@@ -6022,8 +6048,8 @@ Screens:
           Control: CanvasComponent
           ComponentName: cmpPrimaryNav
           Properties:
-            CurrentScreen: ="Text"
-            Fill: =RGBA(1, 81, 52, 1)
+            CurrentScreen: ="queue"
+            Fill: =gblTheme.ColorBrandAccent
             Height: =48
             NavItems: |-
               =Table(
@@ -6500,26 +6526,44 @@ Screens:
                         LayoutMinWidth: =16
                         OnSelect: |-
                           =IfError(
-                                  With(
-                                      {
-                                          _submitted: Patch(
-                                              'Project Intake Requests',
-                                              varProjectRec,
-                                              {
-                                                  'Project Intake Status': nod_pr_status_choice.Submitted,
-                                                  nod_SubmittedBy:         varAppUser.'Email Address (emailaddress)'
-                                              }
-                                          )
-                                      },
-                                      Set(varProjectRec, _submitted);
-                                      Set(varSelectedRequest, _submitted);
-                                      Set(varHomeDataStale, true);
-                                      Set(varMRNeedsRefresh, true);
-                                      Notify("Request submitted successfully!", NotificationType.Success);
-                                      Navigate(scrMyRequests, ScreenTransition.Fade)
-                                  ),
-                                  Notify("Submit failed: " & FirstError.Message, NotificationType.Error)
-                              )
+                              With(
+                                  {
+                                      // Determine target status based on classification flags set during gate
+                                      _targetStatus: If(
+                                          varJDI Or (Not(varRequiresPMOTriage) And Not(varHasSteeringTrigger)),
+                                          nod_pr_status_choice.'IT Estimate',   // Just Do It or Standard Project → direct to IT
+                                          nod_pr_status_choice.Submitted         // PMO Triage or Steering Committee → PMO queue
+                                      ),
+
+                                      _submitted: Patch(
+                                          'Project Intake Requests',
+                                          varProjectRec,
+                                          {
+                                              'Project Intake Status': If(
+                                                  varJDI Or (Not(varRequiresPMOTriage) And Not(varHasSteeringTrigger)),
+                                                  nod_pr_status_choice.'IT Estimate',
+                                                  nod_pr_status_choice.Submitted
+                                              ),
+                                              nod_SubmittedBy: varAppUser.'Email Address (emailaddress)'
+                                          }
+                                      )
+                                  },
+                                  Set(varProjectRec, _submitted);
+                                  Set(varSelectedRequest, _submitted);
+                                  Set(varHomeDataStale, true);
+                                  Set(varMRNeedsRefresh, true);
+                                  Notify(
+                                      If(
+                                          varJDI Or (Not(varRequiresPMOTriage) And Not(varHasSteeringTrigger)),
+                                          "Request submitted and routed directly to IT Estimate.",
+                                          "Request submitted successfully!"
+                                      ),
+                                      NotificationType.Success
+                                  );
+                                  Navigate(scrMyRequests, ScreenTransition.Fade)
+                              ),
+                              Notify("Submit failed: " & FirstError.Message, NotificationType.Error)
+                          )
                         Text: =If(varRequiresPMOTriage, "Submit to PMO ✓", "Submit to IT ✓")
                         Width: =150
       - cmpPrimaryNav_8:
@@ -7645,4 +7689,3 @@ Screens:
             Visible: =false
             X: =40
             Y: =40
-
