@@ -14,8 +14,7 @@ Screens:
                     "nod_displayorder",
                     SortOrder.Ascending
                 )
-            )
-        );
+            ),
             // New request path — full reset
             Concurrent(
                 Set(varWizardStep,         0),
@@ -37,6 +36,7 @@ Screens:
                 Set(varWizardMode, "Create"),
                 Clear(colDynamicAnswers),
                 Clear(colDynamicMultiAnswers)
+            )
             )
     Children:
       - cntIntakeShell:
@@ -1584,7 +1584,7 @@ Screens:
                                   DisplayMode.Disabled,
                                   DisplayMode.Edit
                               ),
-                              If(CategoryStepValid, DisplayMode.Edit Or IsBlank(txtBenefitAmount.Text), DisplayMode.Disabled)
+                              If(varCategoryStepValid, DisplayMode.Edit Or IsBlank(txtBenefitAmount.Text), DisplayMode.Disabled)
                           )
                         FillPortions: =1
                         Height: =40
@@ -1659,7 +1659,7 @@ Screens:
                                       ) > 0,
 
                                       // Questions exist — advance to category step
-                                      CategoryStepValid;
+                                      varCategoryStepValid;
                                       Set(varWizardStep, 2),
 
                                       // No questions — refresh record and go to review
