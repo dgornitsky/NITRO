@@ -77,20 +77,6 @@ Screens:
                         VerticalAlign: =VerticalAlign.Top
                         Width: =500
                         X: =40
-                  - drpQuickRole:
-                      Control: ModernDropdown@1.0.1
-                      Properties:
-                        ItemDisplayText: =ThisItem.Value
-                        Items: |-
-                          =[
-                              "Admin",
-                              "PMO",
-                              "IT Estimate Manager",
-                              "Approver",
-                              "Unauthorized"
-                          ]
-                        X: =349
-                        Y: =9
             - cntHeroRow:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
@@ -375,7 +361,10 @@ Screens:
                           ="Open request: " & ThisItem.'Request Title'
                         Appearance: ='ButtonCanvas.Appearance'.Transparent
                         Height: =72
-                        OnSelect: =Navigate(scrReview, ScreenTransition.Fade)
+                        OnSelect: |-
+                          =Set(varProjectRec, LookUp('Project Intake Requests',
+                                nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                            Navigate(scrReview, ScreenTransition.Fade)
                         Text: =""
                         Width: =Parent.Width
       - cmpHeader_1:
