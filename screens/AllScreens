@@ -66,6 +66,7 @@ Set(gblTheme, {
     ColorBorder:            RGBA(214, 220, 229, 1),
     ColorBorderStrong:      RGBA(160, 170, 184, 1),
     ColorOverlay:           RGBA(20, 24, 31, 0.45),
+    ColorScrim:             RGBA(15, 23, 42, 0.5),
 
     // Text
     ColorTextPrimary:   RGBA(20, 24, 31, 1),
@@ -234,6 +235,7 @@ Set(varGuideTab,            "");
 Set(varSelectedRequestId,   "");
 Set(varQueueCollapsed,      false);
 Set(varIsSaving, false);
+Set(varPMOEmail, "");
 
 // ─── 10. INTAKE / WIZARD STATE ───────────────────────────────────────────────
 Set(varWizardStep,           0);
@@ -288,7 +290,7 @@ Set(varPMOActiveTab,        "Triage");
 Set(varSelectedPMORecord,   Blank());
 
 // ─── 14. APPROVAL SCREEN STATE ───────────────────────────────────────────────
-Set(varSelectedApprovalRec, Blank();
+//Set(varSelectedApprovalRec, Blank());
 
 // ─── 15. WIZARD STEP STATES (future screens) ─────────────────────────────────
 Set(varReqWizardStep,       0);
@@ -316,7 +318,20 @@ Concurrent(
         ComplexCalcs:    Choices('Are there complex calculations and/or Rules? (Project Intake Requests)')
     }),
     Set(gblCurrentUser, User()),
-    Set(gblSessionId,   GUID())
+    Set(gblSessionId,   GUID()),
+    Set(
+        varPMOEmail,
+        Coalesce(
+            LookUp(
+                'Environment Variable Values',
+                'Environment Variable Definition'.'Schema Name' = "nod_NITROPMOEmail"
+            ).Value,
+            LookUp(
+                'Environment Variable Definitions',
+                'Schema Name' = "nod_NITROPMOEmail"
+            ).'Default Value'
+        )
+    )
 );
 
 // ─── 17. STATIC COLLECTIONS ───────────────────────────────────────────────────
@@ -355,7 +370,7 @@ ClearCollect(colCmpDetailsListColumns,
     { ColName: "nod_benefitscore",    ColDisplayName: "Score",          ColWidth: 80,  ColIsBold: false, ColSortable: true },
     { ColName: "nod_status",          ColDisplayName: "Status",         ColWidth: 130, ColIsBold: false, ColSortable: true },
     { ColName: "createdon",           ColDisplayName: "Date Submitted", ColWidth: 140, ColIsBold: false, ColSortable: true }
-));
+);
 Screens:
   scrHome:
     Properties:
@@ -721,7 +736,7 @@ Screens:
                         Height: =72
                         OnSelect: |-
                           =Set(varProjectRec, LookUp('Project Intake Requests',
-                                nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                                'Project Intake Request' = ThisItem.'Project Intake Request'));
                             Navigate(scrReview, ScreenTransition.Fade)
                         Text: =""
                         Width: =Parent.Width
@@ -1192,7 +1207,7 @@ Screens:
                               LayoutMinWidth: =16
                               OnSelect: |-
                                 =Set(varSelectedRequest, LookUp('Project Intake Requests',
-                                    nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                                    'Project Intake Request' = ThisItem.'Project Intake Request'));
                                 Set(varProjectRec, varSelectedRequest);
                                 Set(varReviewConfirmed,   false);
                                 ClearCollect(colReviewBasics,
@@ -3391,7 +3406,7 @@ Screens:
                                         varProjectRec.nod_SubmittedBy,
                                         "IT Estimate Complete — " & varProjectRec.'Request Title',
                                         _emailBody,
-                                        { Cc: "dgornitsky@nationaloak.com", IsHtml: true }
+                                        { Cc: varPMOEmail, IsHtml: true }
                                     ),
                                     Notify("Estimate submitted, but the notification email failed to send.", NotificationType.Warning)
                                 )
@@ -3521,7 +3536,7 @@ Screens:
 
                           // 3. Load selected request into working variables (no status mutation on select)
                           With({_rec: LookUp('Project Intake Requests',
-                                  nod_projectintakerequestid = ThisItem.nod_projectintakerequestid)},
+                                  'Project Intake Request' = ThisItem.'Project Intake Request')},
                               Set(varProjectRec,            _rec);
                               Set(varSelectedIntakeRequest, _rec);
                               Set(varITEstimate,            _rec)
@@ -3568,14 +3583,14 @@ Screens:
                               BorderColor: |-
                                 =
                                 If(
-                                    Text(ThisItem.'IT Estimate Status') = "In Review",
+                                    ThisItem.'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.'In Review',
                                     Color.Orange,
                                     Color.Transparent
                                 )
                               BorderThickness: |-
                                 =
                                 If(
-                                    Text(ThisItem.'IT Estimate Status') = "In Review",
+                                    ThisItem.'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.'In Review',
                                     1,
                                     0
                                 )
@@ -3583,7 +3598,7 @@ Screens:
                                 =
                                 Switch(
                                     ThisItem.'IT Estimate Status',
-                                    'IT Estimate Status (Project Intake Requests)'.'Information Needeed',     gblTheme.ColorDanger,
+                                    'IT Estimate Status (Project Intake Requests)'.'Information Needed',     gblTheme.ColorDanger,
                                     'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDanger,
 
                                     // ✅ NEW In Review text color
@@ -3596,7 +3611,7 @@ Screens:
                                 =
                                 Switch(
                                     ThisItem.'IT Estimate Status',
-                                    'IT Estimate Status (Project Intake Requests)'.'Information Needeed',     gblTheme.ColorDangerBg,
+                                    'IT Estimate Status (Project Intake Requests)'.'Information Needed',     gblTheme.ColorDangerBg,
                                     'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDangerBg,
 
                                     // ✅ NEW In Review color
@@ -4218,7 +4233,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =gblTheme.ColorBorderStrong
+            Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varIsSubmitting
             Width: =App.Width
@@ -4501,7 +4516,7 @@ Screens:
                                   Control: Button@0.0.45
                                   Properties:
                                     Appearance: ='ButtonCanvas.Appearance'.Secondary
-                                    BasePaletteColor: =gblColorText
+                                    BasePaletteColor: =gblTheme.ColorTextPrimary
                                     DisplayMode: |-
                                       =If(
                                       Len(Trim(txtContactMessage.Text)) > 0,
@@ -4519,7 +4534,7 @@ Screens:
                                                                                     varProjectRec.nod_SubmittedBy,
                                                                                     "More Information Needed — " & varProjectRec.'Request Title',
                                                                                     "<p>...</p>",
-                                                                                    { Cc: "pmo@nationaloak.com", IsHtml: true }
+                                                                                    { Cc: varPMOEmail, IsHtml: true }
                                                                                 );
                                                                                 Patch(
                                                                                     'Project Intake Requests',
@@ -4533,14 +4548,14 @@ Screens:
                                                                                 Collect(colEstimateAudit,
                                                                                     {
                                                                                         EventType:   "Info Requested",
-                                                                                        ChangedBy:   varCurrentSystemUserId,
+                                                                                        ChangedBy:   varAppUser.Name,
                                                                                         ChangedAt:   Now(),
                                                                                         Notes:       txtContactMessage.Text,
                                                                                         StatusColor: 'BadgeCanvas.ThemeColor'.Warning
                                                                                     }
                                                                                 );
                                                                                 Notify(
-                                                                                    "Email sent to " & varProjectRec.nod_SubmittedBy & " (CC: pmo@nationaloak.com)",
+                                                                                    "Email sent to " & varProjectRec.nod_SubmittedBy & " (CC: " & varPMOEmail & ")",
                                                                                     NotificationType.Success
                                                                                 );
                                                                                 Set(varShowContactPanel, false);
@@ -4754,7 +4769,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =gblTheme.ColorSurfaceAlt
+            Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varEstimateInputSelect
             Width: =App.Width
@@ -5133,18 +5148,15 @@ Screens:
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
                         OnSelect: |-
-                          =
-                          Set(varEstimateInputSelect, false);
-
-                                  Reset(radEstimateHours);
-                                  Reset(radEstimateITSystems);
-                                  Reset(dtpStartMonth);
-
-                                  Set(varEstimateHours, Blank());
-                                  Set(varEstimateSystems, Blank());
-                                  Set(varEstimateStartMonth, Blank());
-                                  Set(varEffortScore, 0);
-                                  Set(varEffortLabel, Blank())
+                          =Set(varEstimateInputSelect, false);
+                          Reset(radEstimateHours);
+                          Reset(radEstimateITSystems);
+                          Reset(dtpStartMonth);
+                          Set(varEstimateHours, Blank());
+                          Set(varEstimateSystems, Blank());
+                          Set(varEstimateStartMonth, Blank());
+                          Set(varEffortScore, 0);
+                          Set(varEffortLabel, Blank());
                         Text: ="Cancel"
                         Width: =120
                   - btnSaveEstimateModal:
@@ -5206,7 +5218,7 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
-            Fill: =Color.DarkGray
+            Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varShowNotesPanel
             Width: =App.Width
@@ -5890,7 +5902,7 @@ Screens:
                                                     )
                                     LayoutMinHeight: =16
                                     LayoutMinWidth: =16
-                                    OnSelect: "=IfError(\r\n                  With(\r\n                      {\r\n                          _newClass: If(\r\n                              IsBlank(varPMOReclassTo)\r\n                                  Or varPMOReclassTo = Text(varSelectedPMORecord.'Project Classification'),\r\n                              Blank(),\r\n                              varPMOReclassTo\r\n                          ),\r\n                          _patched: Patch(\r\n                              'Project Intake Requests',\r\n                              varSelectedPMORecord,\r\n                              {\r\n                                  'Project Intake Status': nod_pr_status_choice.Draft,\r\n                                  'PMO Notes':             varTriageNotesText\r\n                              }\r\n                          )\r\n                      },\r\n                      RemoveIf(colPMOTriageQueue, 'IntakeID Request' = _patched.'IntakeID Request');\r\n                      Set(varSelectedPMORecord, Blank());\r\n                      Set(varPMOReclassTo, \"\");\r\n                      Set(varPMOReclassReason, \"\");\r\n                      Set(varTriageNotesText, \"\");\r\n                      Reset(txtTriageNotes);\r\n                      Reset(ddReclass);\r\n                \r\n                      If(\r\n                          Not(IsEmpty(colPMOTriageQueue)),\r\n                          Set(varSelectedPMORecord, First(colPMOTriageQueue));\r\n                          Set(varPMOStage,\r\n                              If(\r\n                                  First(colPMOTriageQueue).'IT Estimate Status'\r\n                                      = 'IT Estimate Status (Project Intake Requests)'.Complete,\r\n                                  \"EstimateReady\",\r\n                                  \"NeedsEstimate\"\r\n                              )\r\n                          )\r\n                      );\r\n                      Notify(\"Request returned to submitter.\", NotificationType.Warning)\r\n                  ),\r\n                  Notify(\"Return failed: \" & FirstError.Message, NotificationType.Error)\r\n              )"
+                                    OnSelect: "=IfError(\r\n                  With(\r\n                      {\r\n                          _newClass: If(\r\n                              IsBlank(varPMOReclassTo)\r\n                                  Or varPMOReclassTo = Text(varSelectedPMORecord.'Project Classification'),\r\n                              Blank(),\r\n                              varPMOReclassTo\r\n                          ),\r\n                          _patched: Patch(\r\n                              'Project Intake Requests',\r\n                              varSelectedPMORecord,\r\n                              {\r\n                                  'Project Intake Status': nod_pr_status_choice.Draft,\r\n                                  'PMO Notes':             varTriageNotesText\r\n                              }\r\n                          )\r\n                      },\r\n                      RemoveIf(colPMOTriageQueue, 'Project Intake Request' = _patched.'Project Intake Request');\r\n                      Set(varSelectedPMORecord, Blank());\r\n                      Set(varPMOReclassTo, \"\");\r\n                      Set(varPMOReclassReason, \"\");\r\n                      Set(varTriageNotesText, \"\");\r\n                      Reset(txtTriageNotes);\r\n                      Reset(ddReclass);\r\n                \r\n                      If(\r\n                          Not(IsEmpty(colPMOTriageQueue)),\r\n                          Set(varSelectedPMORecord, First(colPMOTriageQueue));\r\n                          Set(varPMOStage,\r\n                              If(\r\n                                  First(colPMOTriageQueue).'IT Estimate Status'\r\n                                      = 'IT Estimate Status (Project Intake Requests)'.Complete,\r\n                                  \"EstimateReady\",\r\n                                  \"NeedsEstimate\"\r\n                              )\r\n                          )\r\n                      );\r\n                      Notify(\"Request returned to submitter.\", NotificationType.Warning)\r\n                  ),\r\n                  Notify(\"Return failed: \" & FirstError.Message, NotificationType.Error)\r\n              )"
                                     Text: ="Return to Submitter"
                                     Width: =160
                               - ddReclass:
@@ -6002,7 +6014,7 @@ Screens:
                                                       // Remove from triage queue
                                                       RemoveIf(
                                                           colPMOTriageQueue,
-                                                          'IntakeID Request' = _patched.'IntakeID Request'
+                                                          'Project Intake Request' = _patched.'Project Intake Request'
                                                       );
 
                                                       // Reset all state
@@ -7103,15 +7115,16 @@ Screens:
                         Text: ="Question Type *"
                         Width: =Parent.Width
                   - ddAdminQType:
-                      Control: DropDown@0.0.45
+                      Control: ModernCombobox@1.1.0
                       Properties:
                         AccessibleLabel: ="Question type, required"
                         BorderColor: =gblTheme.ColorBorder
                         BorderThickness: =1
                         Fill: =gblTheme.ColorSurface
                         Height: =44
+                        ItemDisplayText: =ThisItem.Value
                         Items: =Choices('Question Type (Intake Questions)')
-                        LayoutMinHeight: =44
+                        LayoutMinHeight: =16
                         LayoutMinWidth: =16
                         Width: =Parent.Width
             - conPanelQOrder:
