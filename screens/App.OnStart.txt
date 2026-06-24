@@ -204,10 +204,10 @@ If(
     )
 );
 // ─── 8. ROLE FLAGS ───────────────────────────────────────────────────────────
-Set(varIsAdmin,             If(varAppUser.IsAdmin             = true, true, false));
-Set(varIsPMO,               If(varAppUser.IsPMO               = true, true, false));
-Set(varIsITEstimateManager, If(varAppUser.IsITEstimateManager = true, true, false));
-Set(varIsApprover,          If(varAppUser.IsApprover          = true, true, false));
+Set(varIsAdmin,             varAppUser.IsAdmin             = true);
+Set(varIsPMO,               varAppUser.IsPMO               = true);
+Set(varIsITEstimateManager, varAppUser.IsITEstimateManager = true);
+Set(varIsApprover,          varAppUser.IsApprover          = true);
 Set(varCanEdit,             varIsAdmin Or varIsPMO);
 Set(varAppReady,            true);
 
@@ -288,7 +288,7 @@ Set(varPMOActiveTab,        "Triage");
 Set(varSelectedPMORecord,   Blank());
 
 // ─── 14. APPROVAL SCREEN STATE ───────────────────────────────────────────────
-Set(varSelectedApprovalRec, "");
+Set(varSelectedApprovalRec, Blank();
 
 // ─── 15. WIZARD STEP STATES (future screens) ─────────────────────────────────
 Set(varReqWizardStep,       0);
@@ -297,6 +297,7 @@ Set(varScheduleWizardStep,  0);
 Set(varSelectedActiveProject, "");
 Set(varSelectedProject,       "");
 Set(varMyRequestsFilter,    "All");
+Set(varEnvironmentLabel, "");
 
 // ─── 16. CHOICES + USER PROFILE (parallel) ────────────────────────────────────
 Concurrent(
@@ -354,4 +355,4 @@ ClearCollect(colCmpDetailsListColumns,
     { ColName: "nod_benefitscore",    ColDisplayName: "Score",          ColWidth: 80,  ColIsBold: false, ColSortable: true },
     { ColName: "nod_status",          ColDisplayName: "Status",         ColWidth: 130, ColIsBold: false, ColSortable: true },
     { ColName: "createdon",           ColDisplayName: "Date Submitted", ColWidth: 140, ColIsBold: false, ColSortable: true }
-);
+));
