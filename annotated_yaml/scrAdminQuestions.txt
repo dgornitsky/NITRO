@@ -506,6 +506,9 @@ Screens:
                         Size: =gblTheme.FontSizeBody
                         Text: ="Question Type *"
                         Width: =Parent.Width
+                  // ✅ NITRO-025 [PARTIALLY RESOLVED]: was DropDown@0.0.45, migrated to ModernCombobox@1.1.0
+                  // with ItemDisplayText: =ThisItem.Value added. Screen still has other unconverted legacy
+                  // controls (Button@0.0.45, Toggle@1.1.5, Rectangle@2.3.0) — migration in progress, not complete.
                   - ddAdminQType:
                       Control: ModernCombobox@1.1.0
                       Properties:

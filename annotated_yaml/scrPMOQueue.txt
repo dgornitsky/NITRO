@@ -504,6 +504,10 @@ Screens:
                               - btnReturnToSubmitter:
                                   Control: ModernButton@1.0.0
                                   Properties:
+                                    // ✅ NITRO-006 [RESOLVED] (within OnSelect string below): 'IntakeID Request' ->
+                                    // 'Project Intake Request' in the RemoveIf() call.
+                                    // ⚠️ NITRO-014 [STILL PRESENT]: OnSelect formula remains a single inline-quoted
+                                    // string with escaped \r\n instead of a |- block — unchanged this pass.
                                     BasePaletteColor: =gblTheme.ColorWarning
                                     DisplayMode: |-
                                       =If(
@@ -623,6 +627,8 @@ Screens:
                                                       },
 
                                                       // Remove from triage queue
+                                                      // ✅ NITRO-006 [RESOLVED] (2nd occurrence): was 'IntakeID Request' (wrong
+                                                      // column name) — both occurrences now fixed, finding fully closed.
                                                       RemoveIf(
                                                           colPMOTriageQueue,
                                                           'Project Intake Request' = _patched.'Project Intake Request'

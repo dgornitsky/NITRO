@@ -361,6 +361,9 @@ Screens:
                           ="Open request: " & ThisItem.'Request Title'
                         Appearance: ='ButtonCanvas.Appearance'.Transparent
                         Height: =72
+                        // Cosmetic: column reference changed from nod_projectintakerequestid to
+                        // 'Project Intake Request' for display-name consistency — no behavior change,
+                        // NITRO-011 (already resolved) unaffected.
                         OnSelect: |-
                           =Set(varProjectRec, LookUp('Project Intake Requests',
                                 'Project Intake Request' = ThisItem.'Project Intake Request'));

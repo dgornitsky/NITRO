@@ -66,6 +66,9 @@ Set(gblTheme, {
     ColorBorder:            RGBA(214, 220, 229, 1),
     ColorBorderStrong:      RGBA(160, 170, 184, 1),
     ColorOverlay:           RGBA(20, 24, 31, 0.45),
+    // ✅ NITRO-031 [RESOLVED]: new semi-transparent token added so modal scrims (scrITEstimate:
+    // conSavingOverlay, conOverlayEstimate, conNotesModal) dim the backdrop instead of fully
+    // covering it with an opaque token as in the previous (regressed) pass.
     ColorScrim:             RGBA(15, 23, 42, 0.5),
 
     // Text
@@ -290,6 +293,9 @@ Set(varPMOActiveTab,        "Triage");
 Set(varSelectedPMORecord,   Blank());
 
 // ─── 14. APPROVAL SCREEN STATE ───────────────────────────────────────────────
+// ✅ NITRO-030 [RESOLVED]: was `Set(varSelectedApprovalRec, Blank();` (missing close-paren,
+// broke whole-file paren balance). Fix commented the statement out entirely and removed the
+// compensating extra `)` at EOF. Functionally equivalent: an un-Set() global defaults to Blank().
 //Set(varSelectedApprovalRec, Blank());
 
 // ─── 15. WIZARD STEP STATES (future screens) ─────────────────────────────────
@@ -319,6 +325,9 @@ Concurrent(
     }),
     Set(gblCurrentUser, User()),
     Set(gblSessionId,   GUID()),
+    // ✅ NITRO-019 [RESOLVED]: varPMOEmail now loaded from a Dataverse Environment Variable
+    // (nod_NITROPMOEmail) with Default Value fallback, replacing hardcoded email literals
+    // previously inlined in scrITEstimate.txt (Cc params + Notify() message).
     Set(
         varPMOEmail,
         Coalesce(

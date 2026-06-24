@@ -205,6 +205,8 @@ Screens:
                                         varProjectRec.nod_SubmittedBy,
                                         "IT Estimate Complete — " & varProjectRec.'Request Title',
                                         _emailBody,
+                                        // ✅ NITRO-019 [RESOLVED] (1 of 3): was hardcoded "dgornitsky@nationaloak.com" — now
+                                        // sourced from varPMOEmail (Dataverse Environment Variable, see App.OnStart.txt).
                                         { Cc: varPMOEmail, IsHtml: true }
                                     ),
                                     Notify("Estimate submitted, but the notification email failed to send.", NotificationType.Warning)
@@ -215,6 +217,8 @@ Screens:
                                 colEstimateAudit,
                                 {
                                     EventType:   "Estimate Submitted to PMO",
+                                    // ✅ NITRO-020 [RESOLVED] (1 of 3): now consistently varAppUser.Name across all
+                                    // 3 colEstimateAudit Collect() calls (was flipping with varCurrentSystemUserId).
                                     ChangedBy:   varAppUser.Name,
                                     ChangedAt:   Now(),
                                     Notes:       "Hours: " & varEstimateHours
@@ -379,6 +383,10 @@ Screens:
                             Control: ModernText@1.0.0
                             Properties:
                               Align: =Align.Center
+                              // ✅ NITRO-034 [RESOLVED]: BorderColor/BorderThickness If() now compares the enum
+                              // member directly (ThisItem.'IT Estimate Status' = ...'In Review') instead of the
+                              // previous Text(...) = "In Review" string-literal comparison, matching the sibling
+                              // Color/Fill Switches below.
                               BorderColor: |-
                                 =
                                 If(
@@ -397,10 +405,12 @@ Screens:
                                 =
                                 Switch(
                                     ThisItem.'IT Estimate Status',
+                                    // ✅ NITRO-033 [RESOLVED]: was the typo'd enum member 'Information Needeed'.
                                     'IT Estimate Status (Project Intake Requests)'.'Information Needed',     gblTheme.ColorDanger,
                                     'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDanger,
 
-                                    // ✅ NEW In Review text color
+                                    // ⚠️ NITRO-032 [STILL PRESENT] (1 of 2 remaining): raw Color.DarkOrange, not a
+                                    // gblTheme token. (3rd original spot, conNotesModal.Fill, is now fixed below.)
                                     'IT Estimate Status (Project Intake Requests)'.'In Review',          Color.DarkOrange,
 
                                     'IT Estimate Status (Project Intake Requests)'.Complete, gblTheme.ColorSuccess,
@@ -410,10 +420,12 @@ Screens:
                                 =
                                 Switch(
                                     ThisItem.'IT Estimate Status',
+                                    // ✅ NITRO-033 [RESOLVED]: was the typo'd enum member 'Information Needeed'.
                                     'IT Estimate Status (Project Intake Requests)'.'Information Needed',     gblTheme.ColorDangerBg,
                                     'IT Estimate Status (Project Intake Requests)'.Received,           gblTheme.ColorDangerBg,
 
-                                    // ✅ NEW In Review color
+                                    // ⚠️ NITRO-032 [STILL PRESENT] (2 of 2 remaining): raw Color.LightGoldenRodYellow,
+                                    // not a gblTheme token.
                                     'IT Estimate Status (Project Intake Requests)'.'In Review',          Color.LightGoldenRodYellow,
 
                                     'IT Estimate Status (Project Intake Requests)'.Complete, gblTheme.ColorSuccessBg,
@@ -1032,6 +1044,8 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
+            // ✅ NITRO-031 [RESOLVED] (1 of 3): was gblTheme.ColorBorderStrong (fully opaque),
+            // now the new semi-transparent gblTheme.ColorScrim token (RGBA alpha 0.5).
             Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varIsSubmitting
@@ -1299,6 +1313,7 @@ Screens:
                                                                                 Collect(colEstimateAudit,
                                                                                     {
                                                                                         EventType:   "Info Requested (Teams)",
+                                                                                        // ✅ NITRO-020 [RESOLVED] (2 of 3): consistently varAppUser.Name now.
                                                                                         ChangedBy:   varAppUser.Name,
                                                                                         ChangedAt:   Now(),
                                                                                         Notes:       txtContactMessage.Text,
@@ -1315,6 +1330,8 @@ Screens:
                                   Control: Button@0.0.45
                                   Properties:
                                     Appearance: ='ButtonCanvas.Appearance'.Secondary
+                                    // ✅ NITRO-021 [RESOLVED]: was the legacy gblColorText shim global, now the
+                                    // proper gblTheme.ColorTextPrimary design token.
                                     BasePaletteColor: =gblTheme.ColorTextPrimary
                                     DisplayMode: |-
                                       =If(
@@ -1333,6 +1350,7 @@ Screens:
                                                                                     varProjectRec.nod_SubmittedBy,
                                                                                     "More Information Needed — " & varProjectRec.'Request Title',
                                                                                     "<p>...</p>",
+                                                                                    // ✅ NITRO-019 [RESOLVED] (2 of 3): was hardcoded "pmo@nationaloak.com".
                                                                                     { Cc: varPMOEmail, IsHtml: true }
                                                                                 );
                                                                                 Patch(
@@ -1347,12 +1365,15 @@ Screens:
                                                                                 Collect(colEstimateAudit,
                                                                                     {
                                                                                         EventType:   "Info Requested",
+                                                                                        // ✅ NITRO-020 [RESOLVED] (3 of 3): consistently varAppUser.Name now.
                                                                                         ChangedBy:   varAppUser.Name,
                                                                                         ChangedAt:   Now(),
                                                                                         Notes:       txtContactMessage.Text,
                                                                                         StatusColor: 'BadgeCanvas.ThemeColor'.Warning
                                                                                     }
                                                                                 );
+                                                                                // ✅ NITRO-019 [RESOLVED] (3 of 3): Notify() confirmation text was hardcoded
+                                                                                // "(CC: pmo@nationaloak.com)", now interpolates varPMOEmail.
                                                                                 Notify(
                                                                                     "Email sent to " & varProjectRec.nod_SubmittedBy & " (CC: " & varPMOEmail & ")",
                                                                                     NotificationType.Success
@@ -1568,6 +1589,8 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
+            // ✅ NITRO-031 [RESOLVED] (2 of 3): was gblTheme.ColorSurfaceAlt (fully opaque),
+            // now gblTheme.ColorScrim.
             Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varEstimateInputSelect
@@ -1946,6 +1969,8 @@ Screens:
                         Height: =40
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
+                        // ✅ NITRO-024 [RESOLVED]: was a malformed block with a stray leading blank `=` line
+                        // and inconsistent indentation; reformatted to a clean |- block.
                         OnSelect: |-
                           =Set(varEstimateInputSelect, false);
                           Reset(radEstimateHours);
@@ -2017,6 +2042,8 @@ Screens:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
           Properties:
+            // ✅ NITRO-031 [RESOLVED] (3 of 3): was raw Color.DarkGray, now gblTheme.ColorScrim.
+            // This also closes 1 of the 3 NITRO-032 raw-Color.* occurrences.
             Fill: =gblTheme.ColorScrim
             Height: =App.Height
             Visible: =varShowNotesPanel

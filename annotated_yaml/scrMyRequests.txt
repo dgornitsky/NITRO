@@ -430,6 +430,15 @@ Screens:
                               Layout: ='ButtonCanvas.Layout'.IconAfter
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
+                              // 🟡 NITRO-036 [PARTIALLY RESOLVED, was NITRO-008]: the record-pointer fetch below
+                              // is now a fresh LookUp() instead of stale ThisItem (the original bug is fixed for
+                              // varSelectedRequest/varProjectRec), BUT the 3 ClearCollect() calls feeding the
+                              // actual review-summary screen still read from ThisItem directly — so the
+                              // review-summary screen can still show stale data if ThisItem isn't the live record.
+                              // Fix: rebind all 3 ClearCollect() blocks to the freshly-fetched record, e.g. via a
+                              // With({_rec: LookUp(...)}, ...) wrapper covering all 4 operations.
+                              // 🔵 NITRO-037 [NEW, Low]: inconsistent indentation across the ClearCollect() calls
+                              // below (cosmetic only — doesn't affect Power Fx parsing).
                               OnSelect: |-
                                 =Set(varSelectedRequest, LookUp('Project Intake Requests',
                                     'Project Intake Request' = ThisItem.'Project Intake Request'));
@@ -551,6 +560,10 @@ Screens:
                       Properties:
                         BorderColor: =gblTheme.ColorBorder
                         BorderThickness: =1
+                        // ✅ NITRO-009 [RESOLVED]: was Switch(ThisItem.'Project Classification', "Steering
+                        // Committee Project", ...) — wrong column + string-literal comparison against Choice
+                        // values. Now compares ThisItem.'Auto-Classified Outcome' against fully-qualified enum
+                        // members, matching the established pattern in scrIntakeWizard.txt/scrPMOQueue.txt.
                         Fill: |-
                           =Switch(ThisItem.'Auto-Classified Outcome',
                               'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project', gblTheme.ColorClassSteering,

@@ -1,3 +1,4 @@
+# ✅ Re-review (commit 24d4d62): NITRO-002 (Concurrent() reset always executing) and NITRO-003/NITRO-004 (undefined CategoryStepValid identifier, both occurrences) all confirmed RESOLVED. Paren-balance on the OnVisible If()/Concurrent() independently re-verified. No findings remain on this screen.
 Screens:
   scrIntakeWizard:
     Properties:
