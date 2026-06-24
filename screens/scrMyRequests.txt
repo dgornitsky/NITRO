@@ -431,25 +431,26 @@ Screens:
                               LayoutMinHeight: =16
                               LayoutMinWidth: =16
                               OnSelect: |-
-                                =Set(varSelectedRequest,  ThisItem);
-                                                                Set(varProjectRec,        ThisItem);
-                                                                Set(varReviewConfirmed,   false);
-                                                                ClearCollect(colReviewBasics,
-                                                                    { Label: "Request Title", Value: ThisItem.'Request Title' },
-                                                                    { Label: "Sponsor",       Value: ThisItem.'Sponsor Name' },
-                                                                    { Label: "Problem",       Value: ThisItem.'What problem are you trying to solve?' },
-                                                                    { Label: "Category",      Value: Text(ThisItem.'Project Category') }
-                                                                );
-                                                                ClearCollect(colReviewBenefits,
-                                                                    { Label: "Benefit Amount", Value: Text(ThisItem.'Benefit Amount', "$#,##0") },
-                                                                    { Label: "Benefit Score",  Value: Text(ThisItem.'Benefit Score') }
-                                                                );
-                                                                ClearCollect(colReviewGovernance,
-                                                                    { Label: "Classification",    Value: Text(ThisItem.'Project Classification') },
-                                                                    { Label: "Revenue Priority",  Value: If(ThisItem.'Revenue Priority Flag' = true, "Yes", "No") },
-                                                                    { Label: "IT Systems",        Value: Concat(ThisItem.'IT Systems Impacted', Value, ", ") }
-                                                                );
-                                                                Navigate(scrReview, ScreenTransition.Fade)
+                                =Set(varSelectedRequest, LookUp('Project Intake Requests',
+                                    nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                                Set(varProjectRec, varSelectedRequest);
+                                Set(varReviewConfirmed,   false);
+                                ClearCollect(colReviewBasics,
+                                    { Label: "Request Title", Value: ThisItem.'Request Title' },
+                                    { Label: "Sponsor",       Value: ThisItem.'Sponsor Name' },
+                                    { Label: "Problem",       Value: ThisItem.'What problem are you trying to solve?' },
+                                    { Label: "Category",      Value: Text(ThisItem.'Project Category') }
+                                    );
+                                   ClearCollect(colReviewBenefits,
+                                    { Label: "Benefit Amount", Value: Text(ThisItem.'Benefit Amount', "$#,##0") },
+                                    { Label: "Benefit Score",  Value: Text(ThisItem.'Benefit Score') }
+                                    );
+                                   ClearCollect(colReviewGovernance,
+                                       { Label: "Classification",    Value: Text(ThisItem.'Project Classification') },
+                                       { Label: "Revenue Priority",  Value: If(ThisItem.'Revenue Priority Flag' = true, "Yes", "No") },
+                                       { Label: "IT Systems",        Value: Concat(ThisItem.'IT Systems Impacted', Value, ", ") }
+                                    );
+                                  Navigate(scrReview, ScreenTransition.Fade)
                               Text: ="View details"
                               Width: =140
                   - txtMeta:
@@ -551,10 +552,10 @@ Screens:
                         BorderColor: =gblTheme.ColorBorder
                         BorderThickness: =1
                         Fill: |-
-                          =Switch(ThisItem.'Project Classification',
-                              "Steering Committee Project", gblTheme.ColorClassSteering,
-                              "PMO Triage",                 gblTheme.ColorClassPMO,
-                              "Just Do It",                 gblTheme.ColorClassJDI,
+                          =Switch(ThisItem.'Auto-Classified Outcome',
+                              'Auto-Classified Outcome (Project Intake Requests)'.'Standard Project', gblTheme.ColorClassSteering,
+                              'Auto-Classified Outcome (Project Intake Requests)'.'PMO Triage',       gblTheme.ColorClassPMO,
+                              'Auto-Classified Outcome (Project Intake Requests)'.'Just Do It',       gblTheme.ColorClassJDI,
                               gblTheme.ColorBorder
                           )
                         Height: =Parent.TemplateHeight - gblTheme.Space2 * 2
