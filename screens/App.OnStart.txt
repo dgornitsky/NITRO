@@ -235,6 +235,7 @@ Set(varGuideTab,            "");
 Set(varSelectedRequestId,   "");
 Set(varQueueCollapsed,      false);
 Set(varIsSaving, false);
+Set(varPMOEmail, "");
 
 // ─── 10. INTAKE / WIZARD STATE ───────────────────────────────────────────────
 Set(varWizardStep,           0);
@@ -317,7 +318,20 @@ Concurrent(
         ComplexCalcs:    Choices('Are there complex calculations and/or Rules? (Project Intake Requests)')
     }),
     Set(gblCurrentUser, User()),
-    Set(gblSessionId,   GUID())
+    Set(gblSessionId,   GUID()),
+    Set(
+        varPMOEmail,
+        Coalesce(
+            LookUp(
+                'Environment Variable Values',
+                'Environment Variable Definition'.'Schema Name' = "nod_NITROPMOEmail"
+            ).Value,
+            LookUp(
+                'Environment Variable Definitions',
+                'Schema Name' = "nod_NITROPMOEmail"
+            ).'Default Value'
+        )
+    )
 );
 
 // ─── 17. STATIC COLLECTIONS ───────────────────────────────────────────────────
