@@ -363,7 +363,7 @@ Screens:
                         Height: =72
                         OnSelect: |-
                           =Set(varProjectRec, LookUp('Project Intake Requests',
-                                nod_projectintakerequestid = ThisItem.nod_projectintakerequestid));
+                                'Project Intake Request' = ThisItem.'Project Intake Request'));
                             Navigate(scrReview, ScreenTransition.Fade)
                         Text: =""
                         Width: =Parent.Width
