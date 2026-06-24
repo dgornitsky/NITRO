@@ -6,34 +6,34 @@ Screens:
       OnVisible: |-
         =Set(varRedirectToHome, false);
 
-        If(
-            Not(varAppReady),
-            true,
-            If(
-                Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
-                Set(varRedirectToHome, true),
-                Set(varRedirectToHome, false);
-                Concurrent(
-                    ClearCollect(colEstimateQueue,
-                        Filter('Project Intake Requests',
-                            'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.Received
-                            Or 'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.'In Review'
+                If(
+                    Not(varAppReady),
+                    true,
+                    If(
+                        Not(varIsAdmin Or varIsPMO Or varIsITEstimateManager),
+                        Set(varRedirectToHome, true),
+                        Set(varRedirectToHome, false);
+                        Concurrent(
+                            ClearCollect(colEstimateQueue,
+                                Filter('Project Intake Requests',
+                                    'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.Received
+                                    Or 'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.'In Review'
+                                )
+                            ),
+                            Set(varProjectRec,        Blank()),
+                            Set(varITEstimate,        Blank()),
+                            Set(varShowContactPanel,  false),
+                            Set(varShowNotesPanel,    false),
+                            Set(varShowRequestPicker, false),
+                            Set(varEstimateHours,     ""),
+                            Set(varEstimateSystems,   ""),
+                            Set(varEffortScore,       0),
+                            Set(varEffortLabel,       ""),
+                            Set(varEstimateNotesText, ""),
+                            Set(varITEstimateMode,    "edit")
                         )
-                    ),
-                    Set(varProjectRec,        Blank()),
-                    Set(varITEstimate,        Blank()),
-                    Set(varShowContactPanel,  false),
-                    Set(varShowNotesPanel,    false),
-                    Set(varShowRequestPicker, false),
-                    Set(varEstimateHours,     ""),
-                    Set(varEstimateSystems,   ""),
-                    Set(varEffortScore,       0),
-                    Set(varEffortLabel,       ""),
-                    Set(varEstimateNotesText, ""),
-                    Set(varITEstimateMode,    "edit")
+                    )
                 )
-            )
-        )
       Width: =App.Width
     Children:
       - conCommandBar:
@@ -131,18 +131,19 @@ Screens:
                   IconStyle: =IconStyle.Filled
                   LayoutMinHeight: =16
                   LayoutMinWidth: =16
-                  OnSelect: |
+                  OnSelect: |-
                     =Set(varEstimateInputSelect, true);
 
+                    // ── Reset all estimate input fields ──────────────────────────────────────────
                     Reset(radEstimateHours);
                     Reset(radEstimateITSystems);
                     Reset(dtpStartMonth);
 
-                    Set(varEstimateHours, Blank());
-                    Set(varEstimateSystems, Blank());
+                    Set(varEstimateHours,     Blank());
+                    Set(varEstimateSystems,   Blank());
                     Set(varEstimateStartMonth, Blank());
-                    Set(varEffortScore, 0);
-                    Set(varEffortLabel, Blank());
+                    Set(varEffortScore,       0);
+                    Set(varEffortLabel,       Blank())
                   Size: =14
                   Text: ="Input Estimate"
                   Width: =150
@@ -165,6 +166,7 @@ Screens:
                   LayoutMinWidth: =16
                   OnSelect: |-
                     =Set(varIsSubmitting, true);
+
                     IfError(
                         With(
                             {
@@ -182,26 +184,33 @@ Screens:
                                 )
                             },
                             Set(varProjectRec, _patched);
-                            Office365Outlook.SendEmailV2(
-                                varProjectRec.nod_SubmittedBy,
-                                "IT Estimate Complete — " & varProjectRec.'Request Title',
-                                "<p>Hi,</p>"
-                                    & "<p>The IT estimate for your request <strong>"
-                                    & varProjectRec.'Request Title'
-                                    & "</strong> has been completed and submitted to the PMO.</p>"
-                                    & "<p>Your request is now in the PMO queue for prioritization.</p>"
-                                    & If(
-                                        Len(varEstimateNotesText) > 0,
-                                        "<p><strong>Notes from IT:</strong> " & varEstimateNotesText & "</p>",
-                                        ""
-                                      )
-                                    & "<p style='color:#6b7280;font-size:12px'>National Oak IT Team</p>",
+
+                            With(
                                 {
-                                    Cc:     "dgornitsky@nationaloak.com",
-                                    IsHtml: true
-                                }
+                                    _emailBody:
+                                        "<p>Hi,</p>"
+                                        & "<p>The IT estimate for your request <strong>"
+                                        & varProjectRec.'Request Title'
+                                        & "</strong> has been completed and submitted to the PMO.</p>"
+                                        & "<p>Your request is now in the PMO queue for prioritization.</p>"
+                                        & If(
+                                            Len(varEstimateNotesText) > 0,
+                                            "<p><strong>Notes from IT:</strong> " & varEstimateNotesText & "</p>",
+                                            ""
+                                          )
+                                        & "<p style='color:#6b7280;font-size:12px'>National Oak IT Team</p>"
+                                },
+                                IfError(
+                                    Office365Outlook.SendEmailV2(
+                                        varProjectRec.nod_SubmittedBy,
+                                        "IT Estimate Complete — " & varProjectRec.'Request Title',
+                                        _emailBody,
+                                        { Cc: "dgornitsky@nationaloak.com", IsHtml: true }
+                                    ),
+                                    Notify("Estimate submitted, but the notification email failed to send.", NotificationType.Warning)
+                                )
                             );
-                            // Write to colEstimateAudit (in-session)
+
                             Collect(
                                 colEstimateAudit,
                                 {
@@ -215,8 +224,8 @@ Screens:
                                 }
                             );
 
-                            // Remove from local queue
                             RemoveIf(colEstimateQueue, 'IntakeID Request' = varProjectRec.'IntakeID Request');
+
                             Notify("Estimate submitted to PMO.", NotificationType.Success);
                             Set(varProjectRec,        Blank());
                             Set(varITEstimate,        Blank());
@@ -306,7 +315,7 @@ Screens:
                           Set(varEstimateSystems,    "");
                           Set(varEstimateStartMonth, Blank());
                           Set(varShowValidation,     false);
-                          Set(varSelectedCategory, Blank());
+                          Set(varSelectedCategory,   Blank());
 
                           // 2. Load dynamic Q&A answers
                           ClearCollect(
@@ -319,51 +328,21 @@ Screens:
                                           'Answer Text':    Text(Value.AnswerText)
                                       }
                                   ),
-                                  'nod_questionlabel',
+                                  nod_questionlabel,
                                   SortOrder.Ascending
                               )
                           );
 
-                          // 3. Status gate — auto-transition Received → In Review
-                          If(
-                              ThisItem.'IT Estimate Status'
-                                  = 'IT Estimate Status (Project Intake Requests)'.Received,
-
-                              IfError(
-                                  With(
-                                      {
-                                          _updated: Patch(
-                                              'Project Intake Requests',
-                                              ThisItem,
-                                              {
-                                                  'IT Estimate Status':
-                                                      'IT Estimate Status (Project Intake Requests)'.'In Review'
-                                              }
-                                          )
-                                      },
-                                      Set(varProjectRec,            _updated);
-                                      Set(varSelectedIntakeRequest, _updated);
-                                      Set(varITEstimate,            _updated);
-                                      Set(varSelectedCategory,      _updated.'Project Category');
-                                      Set(varITEstimateMode,        "edit")
-                                  ),
-                                  Notify(
-                                      "Error updating status: " & FirstError.Message,
-                                      NotificationType.Error
-                                  )
-                              ),
-
-                              Set(varProjectRec,            ThisItem);
-                              Set(varSelectedIntakeRequest, ThisItem);
-                              Set(varITEstimate,            ThisItem);
-                              Set(varSelectedCategory,      ThisItem.'Project Category');
-                              Set(varITEstimateMode,
-                                  If(
-                                      ThisItem.'IT Estimate Status'
-                                          = 'IT Estimate Status (Project Intake Requests)'.Complete,
-                                      "readonly",
-                                      "edit"
-                                  )
+                          // 3. Load selected request into working variables (no status mutation on select)
+                          Set(varProjectRec,            ThisItem);
+                          Set(varSelectedIntakeRequest, ThisItem);
+                          Set(varITEstimate,            ThisItem);
+                          Set(varSelectedCategory,      ThisItem.'Project Category');
+                          Set(varITEstimateMode,
+                              If(
+                                  ThisItem.'IT Estimate Status' = 'IT Estimate Status (Project Intake Requests)'.Complete,
+                                  "readonly",
+                                  "edit"
                               )
                           )
                         ShowScrollbar: =false
@@ -906,7 +885,7 @@ Screens:
                                     RadiusBottomRight: =gblTheme.RadiusSm
                                     RadiusTopLeft: =gblTheme.RadiusSm
                                     RadiusTopRight: =gblTheme.RadiusSm
-                                    Text: =Coalesce(varITEstimate.'IT Effort Score', "—")
+                                    Text: =varEffortScore
                                     Width: =Parent.Width - lblEffortScoreField.Width
                         - lblQASectionHeader:
                             Control: ModernText@1.0.0
@@ -921,7 +900,7 @@ Screens:
                               Text: ="CATEGORY QUESTIONS"
                               Visible: =CountRows(colEstimateAnswers) > 0
                         - DataGrid2:
-                            Control: ModernDataGrid@1.1.0
+                            Control: ModernDataGrid@1.3.0
                             Properties:
                               AlignInContainer: =AlignInContainer.SetByContainer
                               DisplayMode: =DisplayMode.View
@@ -939,7 +918,7 @@ Screens:
                               Y: =
                             Children:
                               - nod_answertext_Column1:
-                                  Control: ModernDataGridColumn@1.1.0
+                                  Control: ModernDataGridColumn@1.1.2
                                   Variant: Textual
                                   IsLocked: true
                                   Properties:
@@ -948,7 +927,7 @@ Screens:
                                     Width: =642
                                     Wrap: =true
                               - nod_questionlabel_Column1:
-                                  Control: ModernDataGridColumn@1.1.0
+                                  Control: ModernDataGridColumn@1.1.2
                                   Variant: Textual
                                   Properties:
                                     FieldDisplayName: ="Question"
@@ -1518,7 +1497,7 @@ Screens:
                                     Content: =ThisItem.EventType
                                     Shape: ='BadgeCanvas.Shape'.Rounded
                                     ThemeColor: =ThisItem.StatusColor
-                                    Width: =80
+                                    Width: =120
                                     X: =
                                     Y: =
                         - conAuditTextCol:
@@ -1541,6 +1520,7 @@ Screens:
                               - lblAuditEvent:
                                   Control: ModernText@1.0.0
                                   Properties:
+                                    AutoHeight: =true
                                     Color: =gblTheme.ColorTextPrimary
                                     FontWeight: =FontWeight.Semibold
                                     Height: =20
@@ -1552,6 +1532,7 @@ Screens:
                               - lblAuditMeta1:
                                   Control: ModernText@1.0.0
                                   Properties:
+                                    AutoHeight: =true
                                     Color: =gblTheme.ColorTextSecondary
                                     Height: =16
                                     LayoutMinHeight: =16
