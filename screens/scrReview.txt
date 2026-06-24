@@ -1,7 +1,62 @@
 Screens:
   scrReview:
     Properties:
-      OnVisible: "=Set(varReviewTabReset, true);\r\nSet(varReviewTab, \"Overview\");\r\nSet(varReviewTabReset, false);\r\nSet(varSelectedRequest, varProjectRec);\r\nSet(varReviewConfirmed, false);\r\n\r\n\r\nSet(\r\n    varProjectRec,\r\n    LookUp(\r\n        'Project Intake Requests',\r\n        'Project Intake Request' = varProjectRec.'Project Intake Request'\r\n    )\r\n);\r\n\r\nClearCollect(\r\n    colReviewAnswers,\r\n\r\n    // ── Section: Request Details ──────────────────────────────────────────\r\n    { Section: \"Request Details\",  Label: \"Request Title\",    Value: varProjectRec.'Request Title',                                    SortOrder: 1 },\r\n    { Section: \"Request Details\",  Label: \"Business Sponsor\", Value: varProjectRec.'Sponsor Name',                                     SortOrder: 2 },\r\n    \r\n{ Section: \"Request Details\",\r\n  Label: \"Project Category\",\r\n  Value: Text(varProjectRec.'Project Category'),\r\n  SortOrder: 4\r\n},\r\n\r\n    // ── Section: Benefit & Priority ───────────────────────────────────────\r\n    { Section: \"Benefit & Priority\", Label: \"Benefit Amount\",  Value: If(IsBlank(varProjectRec.'Benefit Amount'), \"—\", Text(varProjectRec.'Benefit Amount', \"$#,##0\")), SortOrder: 5 },\r\n    { Section: \"Benefit & Priority\", Label: \"Benefit Score\",   Value: If(IsBlank(varProjectRec.'Benefit Score'),\r\n    \"—\", Text(varProjectRec.'Benefit Score')), SortOrder: 6 },\r\n    { Section: \"Benefit & Priority\", Label: \"Revenue Priority\",Value: If(varRevenuePriority, \"Yes\", \"No\"),                                                               SortOrder: 7 },\r\n\r\n    // ── Section: IT & Systems ─────────────────────────────────────────────\r\n    { Section: \"IT & Systems\", Label: \"IT Systems Impacted\",\r\n  Value: If(\r\n      IsEmpty(varProjectRec.'IT Systems Impacted'),\r\n      \"None\",\r\n      Concat(varProjectRec.'IT Systems Impacted', Value, \", \")\r\n  ),\r\n  SortOrder: 8\r\n},\r\n\r\n    // ── Section: Classification ───────────────────────────────────────────\r\n    { Section: \"Classification\", Label: \"Outside Team?\",       Value: varGateAnswer_Q0,  SortOrder: 9 },\r\n    { Section: \"Classification\", Label: \"Shared Resource?\",    Value: varGateAnswer_Q1,  SortOrder: 10 },\r\n    { Section: \"Classification\", Label: \"Clarity\",             Value: varGateAnswer_Q2,  SortOrder: 11 },\r\n    { Section: \"Classification\", Label: \"Duration\",            Value: varGateAnswer_Q3,  SortOrder: 12 },\r\n    { Section: \"Classification\", Label: \"Revenue Priority?\",   Value: varGateAnswer_Q4,  SortOrder: 13 },\r\n    { Section: \"Classification\", Label: \"Classification\",\r\n      Value: Switch(\r\n          true,\r\n          varHasSteeringTrigger, \"Steering Committee\",\r\n          varRequiresPMOTriage,  \"PMO Triage\",\r\n          varJDI,                \"Just Do It\",\r\n          varRevenuePriority,    \"Revenue Priority\",\r\n          \"Standard\"\r\n      ),\r\n      SortOrder: 14\r\n    },\r\n\r\n    // ── Section: Category Questions ───────────────────────────────────────\r\n    // Appended from colDynamicAnswers so each answered question appears inline\r\n    If(\r\n    IsBlank(varProjectRec.'Dynamic Answers'),\r\n    Blank(),\r\n    \r\nForAll(\r\n    Table(ParseJSON(varProjectRec.'Dynamic Answers')),\r\n    {\r\n        Section: \"Category Questions\",\r\n        Label: Text(ThisRecord.Value.QuestionLabel),\r\n        Value: Text(ThisRecord.Value.AnswerText),\r\n        SortOrder: 100\r\n    })))"
+      OnVisible: |-
+        =// 1. Refresh record from Dataverse first
+        Set(
+            varProjectRec,
+            LookUp(
+                'Project Intake Requests',
+                'Project Intake Request' = varProjectRec.'Project Intake Request'
+            )
+        );
+
+        // 2. Reset UI state
+        Set(varReviewTabReset, true);
+        Set(varReviewTab, "Overview");
+        Set(varReviewTabReset, false);
+        Set(varSelectedRequest, varProjectRec);
+        Set(varReviewConfirmed, false);
+
+        // 3. Now build colReviewAnswers from the freshly-refreshed varProjectRec
+        ClearCollect(
+            colReviewAnswers,
+            { Section: "Request Details",    Label: "Request Title",      Value: varProjectRec.'Request Title',                                                              SortOrder: 1 },
+            { Section: "Request Details",    Label: "Business Sponsor",   Value: varProjectRec.'Sponsor Name',                                                               SortOrder: 2 },
+            { Section: "Request Details",    Label: "Business Problem",   Value: varProjectRec.'What problem are you trying to solve?',                                       SortOrder: 3 },
+            { Section: "Request Details",    Label: "Project Category",   Value: Text(varProjectRec.'Project Category'),                                                      SortOrder: 4 },
+            { Section: "Benefit & Priority", Label: "Benefit Amount",     Value: If(IsBlank(varProjectRec.'Benefit Amount'), "—", Text(varProjectRec.'Benefit Amount', "$#,##0")), SortOrder: 5 },
+            { Section: "Benefit & Priority", Label: "Benefit Score",      Value: If(IsBlank(varProjectRec.'Benefit Score'), "—", Text(varProjectRec.'Benefit Score')),         SortOrder: 6 },
+            { Section: "Benefit & Priority", Label: "Revenue Priority",   Value: If(varProjectRec.'Revenue Priority Flag' = true, "Yes", "No"),                                     SortOrder: 7 },
+            { Section: "IT & Systems",       Label: "IT Systems Impacted",Value: If(IsEmpty(varProjectRec.'IT Systems Impacted'), "None", Concat(varProjectRec.'IT Systems Impacted', Value, ", ")), SortOrder: 8 },
+            { Section: "Classification",     Label: "Outside Team?",      Value: varGateAnswer_Q0,                                                                            SortOrder: 9 },
+            { Section: "Classification",     Label: "Shared Resource?",   Value: varGateAnswer_Q1,                                                                            SortOrder: 10 },
+            { Section: "Classification",     Label: "Clarity",            Value: varGateAnswer_Q2,                                                                            SortOrder: 11 },
+            { Section: "Classification",     Label: "Duration",           Value: varGateAnswer_Q3,                                                                            SortOrder: 12 },
+            { Section: "Classification",     Label: "Revenue Priority?",  Value: varGateAnswer_Q4,                                                                            SortOrder: 13 },
+            { Section: "Classification",     Label: "Classification",
+              Value: Switch(true,
+                  varHasSteeringTrigger, "Steering Committee",
+                  varRequiresPMOTriage,  "PMO Triage",
+                  varJDI,                "Just Do It",
+                  varRevenuePriority,    "Revenue Priority",
+                  "Standard"),
+              SortOrder: 14
+            },
+            If(
+                IsBlank(varProjectRec.'Dynamic Answers'),
+                Blank(),
+                ForAll(
+                    Table(ParseJSON(varProjectRec.'Dynamic Answers')),
+                    {
+                        Section:   "Category Questions",
+                        Label:     Text(ThisRecord.Value.QuestionLabel),
+                        Value:     Text(ThisRecord.Value.AnswerText),
+                        SortOrder: 100
+                    }
+                )
+            )
+        );
     Children:
       - conReviewShell:
           Control: GroupContainer@1.5.0
@@ -192,7 +247,7 @@ Screens:
                             Properties:
                               AlignInContainer: =AlignInContainer.SetByContainer
                               Height: =456
-                              Items: =colReviewAnswers
+                              Items: =Filter(colReviewAnswers, Section = "Category Questions")
                               Width: =1366
                             Children:
                               - recReviewRowDivider:
@@ -361,28 +416,27 @@ Screens:
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
                         OnSelect: |-
-                          =// Comma version
-                          Set(varWizardMode, "Resume");
-                          Set(varGateStep, Blank());
-                          Set(varWizardStep, 
+                          =Set(varWizardMode, "Resume");
+                          Set(varGateStep, 0);
+                          Set(varWizardStep,
                               Switch(
                                   varSelectedCategory,
-                                  nod_pr_category.EDI,                          2,
-                                  nod_pr_category.'Application/ERP',              3,
-                                  nod_pr_category.'Data/BI',                      4,
-                                  nod_pr_category.'Infrastructure/Security',      5,
-                                  nod_pr_category.Logistics,                    6,
-                                  nod_pr_category.'M&A, Consolidations', 7,
-                                  nod_pr_category.eCommerce,                    8,
+                                  nod_pr_category.EDI,                        2,
+                                  nod_pr_category.'Application/ERP',          3,
+                                  nod_pr_category.'Data/BI',                  4,
+                                  nod_pr_category.'Infrastructure/Security',  5,
+                                  nod_pr_category.Logistics,                  6,
+                                  nod_pr_category.'M&A, Consolidations',      7,
+                                  nod_pr_category.eCommerce,                  8,
                                   1
                               )
                           );
-                          Navigate(scrIntakeWizard, ScreenTransition.UnCoverRight);
+                          Navigate(scrIntakeWizard, ScreenTransition.UnCoverRight)
                         Text: ="Back"
                   - btnReviewSubmit:
                       Control: Button@0.0.45
                       Properties:
-                        BasePaletteColor: =If(varRequiresPMOTriage, gblColorRed, gblColorGreen)
+                        BasePaletteColor: =gblTheme.ColorBrandAccent
                         Layout: ='ButtonCanvas.Layout'.TextOnly
                         LayoutMinHeight: =16
                         LayoutMinWidth: =16
@@ -390,13 +444,23 @@ Screens:
                           =IfError(
                               With(
                                   {
+                                      // Determine target status based on classification flags set during gate
+                                      _targetStatus: If(
+                                          varJDI Or (Not(varRequiresPMOTriage) And Not(varHasSteeringTrigger)),
+                                          nod_pr_status_choice.'IT Estimate',   // Just Do It or Standard Project → direct to IT
+                                          nod_pr_status_choice.Submitted         // PMO Triage or Steering Committee → PMO queue
+                                      ),
+
                                       _submitted: Patch(
                                           'Project Intake Requests',
                                           varProjectRec,
                                           {
-                                              'Project Intake Status': nod_pr_status_choice.'IT Estimate',
-                                              'IT Estimate Status': 'IT Estimate Status (Project Intake Requests)'.Received,
-                                              nod_SubmittedBy:         varAppUser.'Email Address (emailaddress)'
+                                              'Project Intake Status': If(
+                                                  varJDI Or (Not(varRequiresPMOTriage) And Not(varHasSteeringTrigger)),
+                                                  nod_pr_status_choice.'IT Estimate',
+                                                  nod_pr_status_choice.Submitted
+                                              ),
+                                              nod_SubmittedBy: varAppUser.'Email Address (emailaddress)'
                                           }
                                       )
                                   },
@@ -404,7 +468,14 @@ Screens:
                                   Set(varSelectedRequest, _submitted);
                                   Set(varHomeDataStale, true);
                                   Set(varMRNeedsRefresh, true);
-                                  Notify("Request submitted successfully!", NotificationType.Success);
+                                  Notify(
+                                      If(
+                                          varJDI Or (Not(varRequiresPMOTriage) And Not(varHasSteeringTrigger)),
+                                          "Request submitted and routed directly to IT Estimate.",
+                                          "Request submitted successfully!"
+                                      ),
+                                      NotificationType.Success
+                                  );
                                   Navigate(scrMyRequests, ScreenTransition.Fade)
                               ),
                               Notify("Submit failed: " & FirstError.Message, NotificationType.Error)
@@ -415,17 +486,10 @@ Screens:
           Control: CanvasComponent
           ComponentName: cmpPrimaryNav
           Properties:
-            CurrentScreen: ="Text"
-            Fill: =RGBA(1, 81, 52, 1)
+            CurrentScreen: =""
+            Fill: =gblTheme.ColorBrandPrimary
             Height: =48
-            NavItems: |-
-              =Table(
-                  { Key: "home",        Label: "Home",        IconName: "Home",        ScreenName: "scrHome",         BadgeCount: 0, Show: true },
-                  { Key: "requestform", Label: "Intake Form",  IconName: "AddDocument", ScreenName: "scrIntakeWizard", BadgeCount: 0, Show: true },
-                  { Key: "requests",    Label: "My Requests",  IconName: "Tray",        ScreenName: "scrMyRequests",   BadgeCount: 0, Show: true },
-                  { Key: "queue",       Label: "PMO Queue",    IconName: "Search",      ScreenName: "scrPMOQueue",     BadgeCount: 0, Show: varIsPMO Or varIsAdmin },
-                  { Key: "itestimate",  Label: "IT Estimate",  IconName: "Notebook",    ScreenName: "scrITEstimate",   BadgeCount: 0, Show: varIsITEstimateManager Or varIsAdmin }
-              )
+            NavItems: =Filter(colNavItems, Show = true)
             OnNavItemSelect: |-
               =Switch(SelectedKey,
                   "home",     Navigate(scrHome,        ScreenTransition.Fade),
@@ -439,7 +503,7 @@ Screens:
           Control: CanvasComponent
           ComponentName: cmpHeader
           Properties:
-            EnvironmentLabel: ="Text"
+            EnvironmentLabel: =""
             Fill: =gblTheme.ColorBrandPrimary
             Height: =56
             OnBackSelect: =
