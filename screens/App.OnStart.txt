@@ -66,6 +66,7 @@ Set(gblTheme, {
     ColorBorder:            RGBA(214, 220, 229, 1),
     ColorBorderStrong:      RGBA(160, 170, 184, 1),
     ColorOverlay:           RGBA(20, 24, 31, 0.45),
+    ColorScrim:             RGBA(15, 23, 42, 0.5),
 
     // Text
     ColorTextPrimary:   RGBA(20, 24, 31, 1),
@@ -288,7 +289,7 @@ Set(varPMOActiveTab,        "Triage");
 Set(varSelectedPMORecord,   Blank());
 
 // ─── 14. APPROVAL SCREEN STATE ───────────────────────────────────────────────
-Set(varSelectedApprovalRec, Blank();
+//Set(varSelectedApprovalRec, Blank());
 
 // ─── 15. WIZARD STEP STATES (future screens) ─────────────────────────────────
 Set(varReqWizardStep,       0);
@@ -355,4 +356,4 @@ ClearCollect(colCmpDetailsListColumns,
     { ColName: "nod_benefitscore",    ColDisplayName: "Score",          ColWidth: 80,  ColIsBold: false, ColSortable: true },
     { ColName: "nod_status",          ColDisplayName: "Status",         ColWidth: 130, ColIsBold: false, ColSortable: true },
     { ColName: "createdon",           ColDisplayName: "Date Submitted", ColWidth: 140, ColIsBold: false, ColSortable: true }
-));
+);
