@@ -1,0 +1,119 @@
+# NITRO Operating Model — single source of truth
+#
+# Encodes the definitions called for in the NITRO Assessment Phase 5
+# Execution Roadmap (Required Artifacts: Triage Model, Prioritization
+# Framework, Governance Definitions) so the app's intake, triage, and
+# PMO logic read from one canonical source instead of being re-derived
+# ad hoc in each screen.
+
+operating_model:
+  version: 1.0
+  owner: PMO
+
+# --- Step 2: Intake form redesign ---------------------------------------
+intake_form:
+  principle: "Explain why, not just what"
+  field_order:
+    - Business Problem
+    - Desired Outcome
+    - Business Value
+    - Stakeholder Impact
+    - Urgency
+    - Project Category
+    - IT Systems Impacted   # system/solution questions move later
+    - Benefit Amount
+  guidance:
+    Business Problem: "What good looks like: one or two sentences describing the problem or opportunity, written for someone outside your team."
+    Desired Outcome: "What good looks like: the measurable result you expect if this is delivered."
+    Business Value: "What good looks like: who benefits and how (revenue, cost, risk, experience)."
+    Stakeholder Impact: "What good looks like: who is affected beyond your own team."
+
+# --- Step 3: Triage model -------------------------------------------------
+triage:
+  classification_fields:
+    impact:
+      type: choice
+      options: [Single Team, Multi Team]
+      description: "Number of teams affected by the request."
+    complexity:
+      type: choice
+      options: [Low, Medium, High]
+      description: "Relative solution complexity."
+    risk:
+      type: choice
+      options: [Low, Medium, High]
+      description: "Risk or uncertainty in scope, requirements, or delivery."
+
+  categories:
+    just_do_it:
+      label: "Just Do It"
+      trigger_count: 0
+      description: "Single team, low complexity, low risk — execute without PMO triage."
+    pmo_triage:
+      label: "PMO Triage"
+      trigger_count: 1
+      description: "One escalation trigger present — requires PMO review and classification."
+    standard_project:
+      label: "Standard Project"
+      trigger_count: ">=2"
+      description: "Two or more escalation triggers — requires steering/governance review."
+
+  suggestion_logic:
+    description: >
+      Suggested category is computed from gate answers (shared resource,
+      requirement clarity, duration) and surfaced to PMO as a default.
+    override_field: "Auto-Classified Outcome"
+    requires_reason_when_overridden: true
+
+# --- Step 4: Stage-based readiness ---------------------------------------
+stage_readiness:
+  intake:
+    required_fields: [Request Title, Sponsor Name, Business Problem, Desired Outcome, Business Value, Stakeholder Impact]
+    not_ready_message: "Tell us the problem, outcome, and who it affects before submitting."
+  pre_estimate:
+    required_fields: [IT Systems Impacted, Project Category, Dynamic Answers]
+    not_ready_message: "IT needs systems and scope details before estimating effort."
+  pre_governance:
+    required_fields: [Benefit Amount, Benefit Score, IT Effort Score, Risk]
+    not_ready_message: "Value and risk inputs are required before governance review."
+
+# --- Step 6: Prioritization framework -------------------------------------
+prioritization:
+  scoring_inputs:
+    value:
+      weight: 0.30
+      source_field: "Benefit Score"
+    urgency:
+      weight: 0.20
+      source_field: "Urgency"
+    risk:
+      weight: 0.15
+      source_field: "Risk"
+      inverted: true
+    effort:
+      weight: 0.20
+      source_field: "IT Effort Score"
+      inverted: true
+    dependencies:
+      weight: 0.15
+      source_field: "Dependency Count"
+      inverted: true
+  formula: >
+    PriorityScore = (Value * 0.30) + (Urgency * 0.20)
+      + ((10 - Risk) * 0.15) + ((10 - Effort) * 0.20)
+      + ((10 - Dependencies) * 0.15)
+  ranking_view: "PMO Queue, sorted descending by PriorityScore"
+
+# --- Step 7: Governance thresholds ----------------------------------------
+governance:
+  thresholds:
+    quick_execution:
+      forum: Functional Owners
+      condition: "trigger_count = 0"
+    pmo:
+      forum: PMO Portfolio Review
+      condition: "trigger_count = 1"
+    steering:
+      forum: Steering Committee
+      condition: "trigger_count >= 2"
+  escalation_rule: "Escalate to the next forum when trigger_count increases after reclassification."
